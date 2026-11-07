@@ -1,0 +1,94 @@
+# Builds the Importer Lab as a universal macOS app (.dmg and .zip) and attaches it to a GitHub Release.
+#   - Every push to the working branch: replaces the pre-release "lab-latest" (the test build to install).
+#   - Every tag v1.2.3: creates the release "v1.2.3".
+# Nothing here names the repository owner, so the repo can move to another account unchanged.
+# Unsigned (ad-hoc) by default. Set the repository variable MAC_SIGNING to "on" once the signing
+# secrets exist (see README, "Builds").
+
+name: Build macOS app
+
+on:
+  push:
+    branches:
+      - claude/dazzling-sagan-44w0ed
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-mac-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      MAC_SIGNING: ${{ vars.MAC_SIGNING == 'on' && 'on' || 'off' }}
+    steps:
+      - name: Check out the lab
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Check out the main app (private submodule, pinned commit)
+        env:
+          THE_LIBRARY_DEPLOY_KEY: ${{ secrets.THE_LIBRARY_DEPLOY_KEY }}
+          THE_LIBRARY_TOKEN: ${{ secrets.THE_LIBRARY_TOKEN }}
+        run: scripts/ci/checkout-submodule.sh
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Test (on Electron's own Node)
+        run: npm test
+
+      - name: Set the version
+        run: |
+          base=$(node -p "require('./package.json').version")
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then version="${GITHUB_REF_NAME#v}"; else version="${base}-dev.${GITHUB_RUN_NUMBER}"; fi
+          npm pkg set version="$version"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Build (unsigned, ad-hoc signature)
+        if: env.MAC_SIGNING != 'on'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --mac --publish never
+
+      - name: Build (Developer ID signed and notarised)
+        if: env.MAC_SIGNING == 'on'
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npx electron-builder --mac --publish never
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(dist/*.dmg dist/*.zip)
+          if [ ${#files[@]} -eq 0 ]; then echo "::error::No .dmg or .zip was built"; exit 1; fi
+          signing_note="Unsigned test build: on first open, macOS asks you to confirm in System Settings → Privacy & Security → Open Anyway."
+          if [ "$MAC_SIGNING" = "on" ]; then signing_note="Signed and notarised."; fi
+          notes="Importer Lab $VERSION from commit ${GITHUB_SHA::8}. Universal (Apple silicon and Intel). $signing_note"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            gh release create "$GITHUB_REF_NAME" "${files[@]}" --verify-tag --title "Importer Lab $VERSION" --notes "$notes"
+          else
+            gh release delete lab-latest --yes --cleanup-tag || true
+            gh release create lab-latest "${files[@]}" --prerelease --target "$GITHUB_SHA" --title "Importer Lab $VERSION (latest test build)" --notes "$notes"
+          fi

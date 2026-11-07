@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Read-only lab that runs the next-generation import engine on real drives.",
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN LICENSE",
   "workspaces": [
     "packages/contract",
     "packages/import-engine",
@@ -19,11 +19,77 @@
     "fixtures": "NODE_OPTIONS= ELECTRON_RUN_AS_NODE=1 electron fixtures/synthetic/generate.js fixtures/synthetic/out",
     "scan": "NODE_OPTIONS= ELECTRON_RUN_AS_NODE=1 electron scripts/scan-cli.js",
     "vendor:tailwind": "node scripts/vendor-tailwind.js",
-    "electron:versions": "NODE_OPTIONS= ELECTRON_RUN_AS_NODE=1 electron -e \"console.log(JSON.stringify(process.versions, null, 2)); const s = require('node:sqlite'); console.log('node:sqlite ok, SQLite', new s.DatabaseSync(':memory:').prepare('select sqlite_version() v').get().v)\""
+    "electron:versions": "NODE_OPTIONS= ELECTRON_RUN_AS_NODE=1 electron -e \"console.log(JSON.stringify(process.versions, null, 2)); const s = require('node:sqlite'); console.log('node:sqlite ok, SQLite', new s.DatabaseSync(':memory:').prepare('select sqlite_version() v').get().v)\"",
+    "dist:mac": "electron-builder --mac --publish never",
+    "dist:dir": "electron-builder --dir --publish never",
+    "vendor:fonts": "node scripts/vendor-fonts.js"
   },
   "devDependencies": {
+    "@fontsource/inter": "5.2.8",
     "@tailwindcss/cli": "4.3.3",
     "electron": "41.10.7",
+    "electron-builder": "26.17.0",
     "typescript": "5.9.3"
+  },
+  "productName": "Importer Lab",
+  "author": "Producer Dashboard Corp.",
+  "build": {
+    "appId": "com.producerdashboard.importerlab",
+    "productName": "Importer Lab",
+    "copyright": "Copyright Producer Dashboard Corp. All rights reserved. Proprietary and confidential.",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "asar": false,
+    "npmRebuild": false,
+    "files": [
+      "package.json",
+      "LICENSE",
+      "apps/lab/src/**",
+      "apps/lab/renderer/**",
+      "packages/contract/package.json",
+      "packages/contract/index.js",
+      "packages/import-engine/package.json",
+      "packages/import-engine/src/**",
+      "vendor/the-library/electron/**/*.{js,cjs}",
+      "vendor/the-library/public/**/*",
+      "!vendor/the-library/public/**/*.map"
+    ],
+    "extraMetadata": {
+      "name": "importer-lab",
+      "productName": "Importer Lab",
+      "main": "apps/lab/src/main.js"
+    },
+    "afterPack": "scripts/after-pack.js",
+    "artifactName": "Importer-Lab-${version}-${arch}.${ext}",
+    "mac": {
+      "category": "public.app-category.music",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "dmg": {
+      "title": "Importer Lab ${version}"
+    },
+    "linux": {
+      "target": "dir"
+    },
+    "publish": null
   }
 }

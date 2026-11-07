@@ -33,6 +33,7 @@ If an adapter cannot reach what it needs (for example an unexported function), w
 | `fixtures/adversarial/` | Cases copied from the main repo's import tests (M3). |
 | `labels/` | Marks per real catalog: names, ids and marks only. Never file contents or absolute paths. |
 | `docs/` | `SPEC.md`, `INTEGRATION_BRIEF.md`, `CONFLICTS.md`, `DECISIONS.md`, `PATCHES.md`. |
+| `.github/`, `build/`, `scripts/ci/` | macOS build and release. Never name the repository owner (the repo moves between accounts). |
 
 ## Working rules
 
@@ -40,5 +41,6 @@ If an adapter cannot reach what it needs (for example an unexported function), w
 - Plain, readable code; no clever abstractions.
 - Update `CHANGELOG.md` and `docs/DECISIONS.md` with every milestone.
 - Never commit real catalog data, keys (`.env` is git-ignored) or file contents.
+- Copyright Producer Dashboard Corp. All rights reserved. Proprietary and confidential (`LICENSE`).
 - Run `npm test` before committing. Tests run on Electron's own Node (24.18.0), the same runtime the lab ships.
 - Build in milestones (M1–M4). After each: run the tests, run on the synthetic fixtures, show the result, stop for review.

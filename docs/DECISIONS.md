@@ -3,6 +3,61 @@
 Newest first. Each entry: what was decided, why, and what would change it. Conflicts between the spec
 and the brief are in `docs/CONFLICTS.md`; this log records how the build resolved them.
 
+## 2026-11-07 — Packaging and the producer flow (before M2)
+
+**D19. Review answers recorded.** D6 (the mirrored folder rule) stays until patch P1 lands, with its parity
+test. D15 stays: the catalog is the grid's styled markup, no `tracksPage` stand-in. D13 is resolved by
+vendoring Inter (OFL) from `@fontsource/inter` (`npm run vendor:fonts`); the app's `utilities.css`
+still `@import`s Google Fonts, which the window blocks (no network), so Inter now comes from the lab.
+
+**D20. Packaging from the repository root, no node_modules in the app.** The lab has no runtime
+dependencies, so electron-builder copies only `apps/lab`, the two packages, `vendor/the-library/electron`
+(JS) and `vendor/the-library/public`. Workspace imports became relative paths so nothing needs
+`node_modules` at run time. `asar` is off because the scan runs in a worker thread that loads the engine
+from plain files. The packaged app was run end to end (Linux build, no lab environment variables).
+
+**D21. Unsigned builds get an ad-hoc signature.** electron-builder 26.17 cannot ad-hoc sign, and a
+completely unsigned arm64 app downloaded from the internet is reported as "damaged" with no way to
+open it. `scripts/after-pack.js` runs `codesign --sign -` on the merged universal app, so testers get
+the normal "Open Anyway" path. Developer ID signing and notarisation are wired in the workflow behind
+the repository variable `MAC_SIGNING=on` and five secrets; they are never read while it is off.
+
+**D22. One credential slot for the private submodule, two kinds.** `scripts/ci/checkout-submodule.sh`
+uses `THE_LIBRARY_DEPLOY_KEY` (SSH, read-only) when present, otherwise `THE_LIBRARY_TOKEN` (HTTPS),
+rewriting the submodule URL only for that one command. Switching to a deploy key = adding one secret.
+Nothing names the repository owner; the release step uses the workflow's own repository context.
+
+**D23. Releases.** Branch pushes replace one pre-release, `lab-latest`, so testers always have one place
+to download from; `v*` tags make permanent releases. Branch builds are versioned `0.1.0-dev.<run>`.
+
+**D24. The producer flow is the default; team tools are opt-in.** Welcome → folders → permission note
+→ scanning → catalog → song → marks → send results. Compare, scan options, metrics and logs live in a
+Lab screen and a native Lab menu, shown only after Settings → Show Lab tools.
+
+**D25. Folders.** Suggested: ~/Music (ticked by default), ~/Desktop, ~/Documents, and real folders in
+/Volumes (the startup disk's symlink is skipped). Added and dropped folders are remembered in
+`settings.json` in the data folder. Dropped folders are resolved in the preload with
+`webUtils.getPathForFile` and sent straight to the main process; the page never holds a path. A folder
+inside another ticked folder is not scanned twice.
+
+**D26. Permission note.** Shown once, before the first scan that includes Desktop, Documents, Downloads,
+iCloud Drive (~/Library/Mobile Documents) or /Volumes. Folders the user does not allow are counted as
+unreadable; the catalog then offers a button that opens System Settings → Files and Folders.
+
+**D27. "Check these first" until M2.** A song is unsure when today's importer flagged it as ambiguous, its two modes (keep or strip name prefixes) disagree about which files belong to it, or
+its bounces, projects and videos do not all clean to the same name (the app's `canonicalSongIdentity`).
+Stems are left out of that comparison because today's grouper reads stems with a pattern it does not
+export. A guessed file type is shown on the file, not as doubt about the song. Known gap: "Untitled 14"
+and "Untitled 37" share the name "untitled", so they are not flagged; the generic-title check needs the
+auto-merge adapter (M2), which must stub modules (unzipper, fs-extra) that are not in the packaged app.
+
+**D28. Marks and results.** Marks are saved as `labels/<catalogId>.json` in the data folder; the catalog id
+is a hash of the chosen folders. Unknown fields (such as paths) are dropped when a mark is saved.
+"Send results" writes `exports/Importer Lab results <date time>.json` in the data folder (the only place
+the lab may write) and reveals it in Finder. It holds song and file names, types, counts, marks,
+timings and versions; tests fail if a path or folder path appears. The repository's `labels/` folder is
+where the team keeps the results testers send (M3).
+
 ## 2026-11-07 — Setup and M1
 
 **D1. Submodule pinned to f5af21c7** (the brief's commit, origin/main 2026-11-02), not the newer local

@@ -1,0 +1,109 @@
+'use strict';
+
+// Dev tool: walks the producer flow in the real lab (Electron) and screenshots every screen.
+// Uses a throwaway home folder, so suggestions and the data folder never touch the real ones.
+// Needs Playwright (not a lab dependency). Usage:
+//   node scripts/screenshot-flow.js <music-folder-to-copy-in> <big-folder-for-desktop> <output-folder> [packaged-app-binary]
+// With a packaged binary (for example dist/linux-unpacked/importer-lab) it runs the built app as a
+// user would: no arguments and no lab environment variables.
+
+const path = require('node:path');
+const fs = require('node:fs');
+const os = require('node:os');
+const { _electron: electron } = require('playwright');
+
+const settle = (page, ms = 400) => page.waitForTimeout(ms);
+
+async function main() {
+    const [musicSource, desktopSource, outDir, packagedBinary] = process.argv.slice(2);
+    if (!outDir) throw new Error('Usage: node scripts/screenshot-flow.js <music-folder> <desktop-folder> <output-folder>');
+    fs.mkdirSync(outDir, { recursive: true });
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'lab-flow-home-'));
+    fs.cpSync(musicSource, path.join(home, 'Music', path.basename(musicSource)), { recursive: true, verbatimSymlinks: true, preserveTimestamps: true });
+    fs.cpSync(desktopSource, path.join(home, 'Desktop', path.basename(desktopSource)), { recursive: true, preserveTimestamps: true });
+    fs.mkdirSync(path.join(home, 'Documents'));
+
+    const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, '.config') };
+    delete env.NODE_OPTIONS;
+    for (const key of Object.keys(env)) if (key.startsWith('IMPORTER_LAB_')) delete env[key];
+    const app = packagedBinary
+        ? await electron.launch({ executablePath: path.resolve(packagedBinary), args: [], env })
+        : await electron.launch({ executablePath: require('electron'), args: [path.join(__dirname, '..', 'apps', 'lab')], env });
+    const page = await app.firstWindow();
+    const errors = [];
+    page.on('console', (message) => message.type() === 'error' && errors.push(message.text()));
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.setViewportSize({ width: 1180, height: 820 });
+    let shot = 0;
+    const snap = async (name) => page.screenshot({ path: path.join(outDir, `${String(++shot).padStart(2, '0')}-${name}.png`) });
+
+    await page.waitForSelector('#welcomeStart');
+    await snap('welcome');
+    await page.click('#welcomeStart');
+    await page.waitForSelector('#folderList .lab-folder-row');
+    await page.check('#folderList .lab-folder-row:has-text("Desktop") input');
+    await settle(page);
+    await snap('choose-folders');
+    await page.click('#foldersContinue');
+    await page.waitForSelector('[data-screen="permission"]:not([hidden])');
+    await snap('permission');
+    await page.click('#permissionContinue');
+    await page.waitForSelector('[data-screen="scanning"]:not([hidden])');
+    await page.waitForFunction(() => document.querySelectorAll('#liveSongs .std-chip').length >= 20);
+    await snap('scanning');
+    await page.waitForSelector('#seeCatalog:not([hidden])', { timeout: 120000 });
+    await settle(page);
+    await snap('scan-done');
+    await page.click('#seeCatalog');
+    await settle(page);
+    await snap('catalog');
+    await page.click('tr[data-song="Sky"] td.song-name-cell');
+    await settle(page);
+    await snap('song-detail');
+    await page.click('#songActions [data-wrong-song]');
+    await settle(page);
+    await snap('this-is-wrong-menu');
+    await page.click('.std-menu .std-menu-item:has-text("merged")');
+    await page.waitForSelector('.std-modal');
+    await page.fill('.std-modal input[type="search"]', 'sky');
+    await page.click('.std-modal [data-pick="Mg X Jc Sky Final"]');
+    await settle(page);
+    await snap('merge-with');
+    await page.click('.std-modal .std-modal-btn--primary');
+    await settle(page);
+    await page.click('#songFiles [data-wrong-file]');
+    await page.click('.std-menu .std-menu-item');
+    await settle(page, 600);
+    await snap('song-marked');
+    await page.click('#songBack');
+    await page.click('#exportResults');
+    await settle(page, 600);
+    await snap('send-results');
+    await page.click('#openSettings');
+    await page.waitForSelector('.std-modal');
+    await page.click('.std-modal .std-toggle');
+    await settle(page);
+    await snap('settings');
+    await page.click('.std-modal .std-modal-btn--primary');
+    await page.click('#openLab');
+    await settle(page);
+    await snap('lab-compare');
+    for (const section of ['options', 'metrics', 'logs']) {
+        await page.click(`[data-lab="${section}"]`);
+        await settle(page);
+        await snap(`lab-${section}`);
+    }
+
+    const exportDir = path.join(home, '.config', 'Importer Lab', 'lab-data', 'exports');
+    const exported = fs.readdirSync(exportDir);
+    const labelsDir = path.join(home, '.config', 'Importer Lab', 'lab-data', 'labels');
+    console.log(JSON.stringify({ consoleErrors: errors, exported, labels: fs.readdirSync(labelsDir) }, null, 2));
+    fs.copyFileSync(path.join(exportDir, exported[0]), path.join(outDir, 'example-results.json'));
+    await app.close();
+    fs.rmSync(home, { recursive: true, force: true });
+}
+
+main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+});

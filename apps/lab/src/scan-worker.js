@@ -10,7 +10,7 @@ installFsGuard({ allowedRoots: [workerData.dataDir] });
 
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { scanCatalog } = require('@importer-lab/import-engine');
+const { scanCatalog } = require('../../../packages/import-engine/src');
 const { openStore } = require('./store');
 
 let cancelled = false;

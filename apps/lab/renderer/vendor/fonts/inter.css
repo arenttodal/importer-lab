@@ -1,0 +1,71 @@
+/* Inter by Rasmus Andersson, SIL Open Font License 1.1 (LICENSE-OFL.txt). Vendored by scripts/vendor-fonts.js from @fontsource/inter 5.2.8. */
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 300;
+    src: url('./inter-latin-300-normal.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 300;
+    src: url('./inter-latin-ext-300-normal.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 400;
+    src: url('./inter-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 400;
+    src: url('./inter-latin-ext-400-normal.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 500;
+    src: url('./inter-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 500;
+    src: url('./inter-latin-ext-500-normal.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 600;
+    src: url('./inter-latin-600-normal.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 600;
+    src: url('./inter-latin-ext-600-normal.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 700;
+    src: url('./inter-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 700;
+    src: url('./inter-latin-ext-700-normal.woff2') format('woff2');
+}

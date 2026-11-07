@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.0 — 2026-11-07 (packaging and the producer flow)
+
+### Packaging
+- GitHub Actions workflow builds a universal macOS `.dmg` and `.zip` on every push to the working branch
+  (pre-release `lab-latest`) and on `v*` tags; tests run first, on Electron's Node.
+- Private submodule fetched with `THE_LIBRARY_TOKEN` or, when present, `THE_LIBRARY_DEPLOY_KEY`.
+- Unsigned builds get an ad-hoc signature; Developer ID signing and notarisation prepared behind
+  `MAC_SIGNING=on`. No dependency on the repository owner's name.
+- The app needs no environment variables or commands. `LICENSE` added (proprietary).
+
+### User flow
+- New default screens: welcome, choose folders (suggestions, drives, drag-and-drop, Add folder),
+  macOS permission note, live scanning (counts and songs as they are recognised), catalog with songs to
+  check first, song detail with plain reasons, two-click "This is wrong" marks, "Send results to the team".
+- Lab tools (compare with today's importer, scan options, metrics, logs) behind Settings → Show Lab tools.
+- Inter vendored (OFL) so the lab matches the app offline.
+- Engine: classification during the crawl, live type counts and song names, the app's canonical identity
+  per file.
+
 ## 0.1.0-m1 — 2026-11-07
 
 Setup and milestone M1 (crawl, classify, baseline, catalog).

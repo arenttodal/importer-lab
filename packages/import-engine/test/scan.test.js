@@ -75,3 +75,25 @@ test('unchanged files are reused from the store on a re-scan', async (t) => {
     assert.equal(second.notes.reusedFromStore, first.records.length);
     assert.deepEqual(second.catalog.baseline.groups, first.catalog.baseline.groups);
 });
+
+test('progress reports live type counts and songs as they are recognised', async (t) => {
+    const { root } = makeCatalog(t);
+    const events = [];
+    const result = await scanCatalog(scanRequest([root]), { onProgress: (event) => events.push(event) });
+    const done = events.at(-1);
+    assert.equal(done.phase, 'done');
+    assert.equal(done.songsFound, result.catalog.baseline.groups.length);
+    assert.equal(done.typeCounts.bounces, result.notes.typeCounts.bounces);
+    const announced = events.flatMap((event) => event.newSongs || []);
+    assert.equal(new Set(announced).size, announced.length, 'each song is announced once');
+    for (const group of result.catalog.baseline.groups) assert.ok(announced.includes(group.songName), `${group.songName} announced`);
+});
+
+test('every grouped file carries the app\'s canonical identity', async (t) => {
+    const { root } = makeCatalog(t);
+    const result = await scanCatalog(scanRequest([root]));
+    const byName = new Map(result.catalog.unassigned.map((file) => [file.name, file]));
+    assert.equal(byName.get('SKY master.wav').canonicalIdentity, 'sky');
+    assert.equal(byName.get('Sky Kick.wav').canonicalIdentity, 'sky');
+    assert.equal(byName.get('notes.txt').canonicalIdentity, null);
+});

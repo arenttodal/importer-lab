@@ -8,3 +8,4 @@ lab-data/
 *.sqlite
 *.sqlite-*
 .DS_Store
+dist/
