@@ -1,8 +1,8 @@
 'use strict';
 
-// Runtime constants for contract v1.0.0. Types are in index.d.ts.
+// Runtime constants for contract v1.1.0. Types are in index.d.ts.
 
-const CONTRACT_VERSION = '1.0.0';
+const CONTRACT_VERSION = '1.1.0';
 
 const FILE_TYPES = Object.freeze(['bounces', 'stems', 'projects', 'videos', 'unknown']);
 
@@ -20,4 +20,6 @@ const CLUES = Object.freeze([
     'user-rule'
 ]);
 
-module.exports = { CONTRACT_VERSION, FILE_TYPES, BANDS, CLUES };
+const SONG_KINDS = Object.freeze(['song', 'template', 'course', 'sample-pack', 'stem-set']);
+
+module.exports = { CONTRACT_VERSION, FILE_TYPES, BANDS, CLUES, SONG_KINDS };

@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { CONTRACT_VERSION, FILE_TYPES, BANDS, CLUES } = require('..');
+const { CONTRACT_VERSION, FILE_TYPES, BANDS, CLUES, SONG_KINDS } = require('..');
 
 const types = fs.readFileSync(path.join(__dirname, '..', 'index.d.ts'), 'utf8');
 
@@ -14,16 +14,23 @@ function unionMembers(source, pattern) {
     return [...match[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
 }
 
-test('contract version is 1.0.0 in code, types and package.json', () => {
-    assert.equal(CONTRACT_VERSION, '1.0.0');
-    assert.match(types, /contractVersion: "1\.0\.0"/);
-    assert.equal(require('../package.json').version, '1.0.0');
+test('contract version is 1.1.0 in code, types and package.json; 1.0.0 catalogs stay valid', () => {
+    assert.equal(CONTRACT_VERSION, '1.1.0');
+    assert.match(types, /contractVersion: "1\.0\.0" \| "1\.1\.0"/);
+    assert.equal(require('../package.json').version, '1.1.0');
+});
+
+test('1.1.0 only adds optional fields', () => {
+    const added = types.split('\n').filter((line) => line.includes('// 1.1.0') && /^\s+\w+\??:/.test(line));
+    assert.ok(added.length >= 8);
+    for (const line of added) assert.match(line, /^\s+\w+\?:/, `not optional: ${line.trim()}`);
 });
 
 test('runtime constants match the type unions', () => {
     assert.deepEqual([...FILE_TYPES], unionMembers(types, /export type FileType = ([^;]+);/));
     assert.deepEqual([...BANDS], unionMembers(types, /band: ([^;]+);/));
     assert.deepEqual([...CLUES], unionMembers(types, /clue:\s*([^;]+);/));
+    assert.deepEqual([...SONG_KINDS], unionMembers(types, /export type SongKind = ([^;]+);/));
 });
 
 test('file types are plural, matching tracks.file_type', () => {

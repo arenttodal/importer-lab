@@ -1,6 +1,6 @@
 {
   "name": "importer-lab",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "description": "Read-only lab that runs the next-generation import engine on real drives.",
   "license": "SEE LICENSE IN LICENSE",
@@ -22,7 +22,8 @@
     "electron:versions": "NODE_OPTIONS= ELECTRON_RUN_AS_NODE=1 electron -e \"console.log(JSON.stringify(process.versions, null, 2)); const s = require('node:sqlite'); console.log('node:sqlite ok, SQLite', new s.DatabaseSync(':memory:').prepare('select sqlite_version() v').get().v)\"",
     "dist:mac": "electron-builder --mac --publish never",
     "dist:dir": "electron-builder --dir --publish never",
-    "vendor:fonts": "node scripts/vendor-fonts.js"
+    "vendor:fonts": "node scripts/vendor-fonts.js",
+    "replay": "NODE_OPTIONS= ELECTRON_RUN_AS_NODE=1 electron scripts/replay-results.js"
   },
   "devDependencies": {
     "@fontsource/inter": "5.2.8",
@@ -52,6 +53,7 @@
       "packages/contract/index.js",
       "packages/import-engine/package.json",
       "packages/import-engine/src/**",
+      "packages/import-engine/policy/**",
       "vendor/the-library/electron/**/*.{js,cjs}",
       "vendor/the-library/public/**/*",
       "!vendor/the-library/public/**/*.map"

@@ -57,7 +57,7 @@ async function main() {
     await page.click('#seeCatalog');
     await settle(page);
     await snap('catalog');
-    await page.click('tr[data-song="Sky"] td.song-name-cell');
+    await page.locator('tr[data-song] .song-name-line p', { hasText: /^Sky$/ }).first().click();
     await settle(page);
     await snap('song-detail');
     await page.click('#songActions [data-wrong-song]');
@@ -66,7 +66,7 @@ async function main() {
     await page.click('.std-menu .std-menu-item:has-text("merged")');
     await page.waitForSelector('.std-modal');
     await page.fill('.std-modal input[type="search"]', 'sky');
-    await page.click('.std-modal [data-pick="Mg X Jc Sky Final"]');
+    await page.locator('.std-modal [data-pick]').first().click();
     await settle(page);
     await snap('merge-with');
     await page.click('.std-modal .std-modal-btn--primary');

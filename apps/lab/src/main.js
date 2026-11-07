@@ -21,6 +21,7 @@ const { listFolders, publicFolders } = require('./folders');
 const labels = require('./labels');
 const history = require('./history');
 const { buildResults, writeResults } = require('./export');
+const { loadExistingSongs } = require('./existing-songs');
 const { PINNED_COMMIT, ENGINE_VERSION } = require('../../../packages/import-engine/src');
 
 const RENDERER_DIR = path.join(__dirname, '..', 'renderer');
@@ -100,7 +101,19 @@ function appInfo() {
 }
 
 function publicSettings() {
-    return { showLabTools: settings.showLabTools, scanOptions: settings.scanOptions };
+    const snapshot = settings.existingSongsSnapshot;
+    return {
+        showLabTools: settings.showLabTools,
+        scanOptions: settings.scanOptions,
+        existingSongs: snapshot ? { count: snapshot.count, loadedAt: snapshot.loadedAt } : null
+    };
+}
+
+// The snapshot is re-read on every scan; if it has become empty or unreadable the scan stops
+// with that message rather than matching against nothing.
+function existingSongsForScan() {
+    const snapshot = settings.existingSongsSnapshot;
+    return snapshot ? loadExistingSongs(snapshot.path) : [];
 }
 
 // A new scan replaces one still running: the old one is cancelled and finishes first.
@@ -118,8 +131,11 @@ async function startScanning() {
             includeCloudPlaceholders: settings.scanOptions.includeCloudPlaceholders === 'skip' ? 'skip' : 'list',
             ai: { enabled: false, maxCostUsd: 0, model: '' },
             mergeRule: settings.scanOptions.mergeRule === 'multi-clue' ? 'multi-clue' : 'exact-identity-only',
-            identityPolicyVersion: `app-${PINNED_COMMIT.slice(0, 8)}`
-        }
+            identityPolicyVersion: `app-${PINNED_COMMIT.slice(0, 8)}`,
+            groupEdits: settings.scanOptions.groupEdits !== false,
+            catalogRules: { courseNamespaces: settings.scanOptions.courseNamespaces || [] }
+        },
+        existingSongs: existingSongsForScan()
     };
     const catalogId = labels.catalogId(request.roots);
     const scan = startScan({
@@ -156,8 +172,23 @@ function registerIpc() {
         if (key === 'showLabTools') updateSettings({ showLabTools: value === true });
         else if (key === 'mergeRule') updateSettings({ scanOptions: { ...settings.scanOptions, mergeRule: value === 'multi-clue' ? 'multi-clue' : 'exact-identity-only' } });
         else if (key === 'includeCloudPlaceholders') updateSettings({ scanOptions: { ...settings.scanOptions, includeCloudPlaceholders: value === 'skip' ? 'skip' : 'list' } });
+        else if (key === 'groupEdits') updateSettings({ scanOptions: { ...settings.scanOptions, groupEdits: value === true } });
+        else if (key === 'courseNamespaces')
+            updateSettings({ scanOptions: { ...settings.scanOptions, courseNamespaces: String(value).split(',').map((item) => item.trim().toLowerCase()).filter(Boolean).slice(0, 50) } });
         else throw new Error(`Unknown setting: ${key}`);
         buildMenu();
+        return publicSettings();
+    });
+
+    ipcMain.handle('lab:load-existing-songs', async () => {
+        const choice = await dialog.showOpenDialog(window, { title: 'Choose an existing-songs snapshot (.json)', properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] });
+        if (choice.canceled || !choice.filePaths[0]) return publicSettings();
+        const songs = loadExistingSongs(choice.filePaths[0]); // throws loudly when empty or malformed
+        updateSettings({ existingSongsSnapshot: { path: choice.filePaths[0], count: songs.length, loadedAt: new Date().toISOString() } });
+        return publicSettings();
+    });
+    ipcMain.handle('lab:clear-existing-songs', () => {
+        updateSettings({ existingSongsSnapshot: null });
         return publicSettings();
     });
 

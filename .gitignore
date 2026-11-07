@@ -9,3 +9,6 @@ lab-data/
 *.sqlite-*
 .DS_Store
 dist/
+
+# Private test data (real catalog names). Never committed.
+private/

@@ -23,7 +23,7 @@ test('no absolute path reaches the renderer (IMP-FN-032-R3)', async (t) => {
     assert.ok(view.files.every((file) => file.sourceRelativePath.startsWith('catalog-a/')));
 });
 
-test('songs: every grouped file is in one song, with plain reasons; unsure songs say why', async (t) => {
+test('songs: every grouped file is in one song, with plain reasons; kinds and bands come from the engine', async (t) => {
     const parent = tempDir(t, 'lab-view-');
     const { root } = generateCatalog(path.join(parent, 'catalog-a'));
     const result = await scanCatalog({
@@ -35,13 +35,11 @@ test('songs: every grouped file is in one song, with plain reasons; unsure songs
     assert.equal(new Set(grouped).size, grouped.length);
     assert.equal(grouped.length + view.otherFiles, view.files.length);
     for (const song of view.songs) {
-        assert.ok(song.reasons.length > 0);
-        if (song.unsure) assert.ok(song.reasons.some((reason) => /check/.test(reason)), `${song.name}: ${song.reasons}`);
+        assert.ok(song.reasons.length > 0, song.name);
+        assert.ok(['sure', 'unsure', 'unclear'].includes(song.band));
+        assert.ok(['song', 'template', 'course', 'sample-pack', 'stem-set'].includes(song.kind));
     }
     const sky = view.songs.find((song) => song.name === 'Sky');
-    assert.match(sky.reasons[0], /same name .*“sky”/);
-    assert.match(sky.reasons[1], /3 stems are named after this song/);
-    assert.equal(sky.unsure, true, 'the strip-prefixes mode splits Sky');
-    assert.match(sky.reasons.join(' '), /groups these files differently/);
-    assert.equal(sky.countsLine, '4 bounces · 2 projects · 3 stems');
+    assert.ok(sky.fileIds.length >= 9, 'Sky gathers its bounces, projects, stems and the SKY FINAL mix');
+    assert.equal(sky.facts.bpm, 122);
 });

@@ -11,7 +11,8 @@ const DEFAULTS = {
     permissionExplained: false,
     addedFolders: [], // absolute paths the user added or dropped
     checked: {}, // absolute path -> boolean
-    scanOptions: { mergeRule: 'exact-identity-only', includeCloudPlaceholders: 'list' }
+    scanOptions: { mergeRule: 'exact-identity-only', includeCloudPlaceholders: 'list', groupEdits: true, courseNamespaces: [] },
+    existingSongsSnapshot: null // { path, count, loadedAt } — path stays in the main process
 };
 
 function loadSettings(dataDir) {

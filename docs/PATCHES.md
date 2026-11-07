@@ -22,6 +22,24 @@ change. Spec touch: IMP_SPEC.md review marker; `@version` bump.
 is a candidate; on macOS `stat -f %Sf` confirms `dataless`.
 **Status:** to propose once it has run on a real catalog with many placeholders (SPEC test catalog list).
 
+## P3 — One list of category prefixes
+
+**Files:** `electron/local-lcp-grouper.js` (`CATEGORY_PREFIXES`, IMP-FN-017, line 661) and the import name cleaners.
+**Why:** the list lives in one module and import paths apply it unevenly (FINDINGS row 15). The lab keeps
+one list in `policy/names-v1.json` (the app's words plus idea/sample words seen on a real catalog).
+**Proposal:** export the list from one module and use it in every cleaner.
+**Status:** to propose after M3 accuracy on labelled catalogs.
+
+## P4 — Name policy for the app (FINDINGS rows 2, 4–6, 12–17, 22–27)
+
+**Files:** `canonicalSongIdentity()`, `normalizeFilename()`.
+**Why:** the two cleaners disagree (row 4), keep stage, render, format and tech words (rows 2, 5, 6, 22,
+23, 25), and strip dates and two-digit numbers that identify different songs (rows 26, 27).
+**Proposal:** one cleaner built from `lab-names-1` once M3 shows the accuracy target on real catalogs: the
+recorded removals become version labels, generic and day-named titles keep their number or date, and
+bare numbers join a song only with the plain title or within one folder.
+**Status:** draft; the lab's policy file and tests are the reference.
+
 ## Already scheduled by the spec (not lab patches)
 
 - Generic titles ("Untitled N", "New Project N", "Track N") merge into one song — port `GENERIC_TITLES`

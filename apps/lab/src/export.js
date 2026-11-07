@@ -2,15 +2,44 @@
 
 // "Send results to the team": one JSON file with names, counts, marks and timings.
 // No paths, no audio, no file contents. Written to the lab data folder, then shown in Finder.
+// Version 2 adds, per file, what the engine's clues use — size, modified time, length and an
+// opaque folder id (a hash; never a folder name) — and the engine's songs, so the team can replay
+// a catalog exactly. Today's song for each file is kept for before/after comparison.
 
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
+
+// A folder id that is stable within one export but means nothing outside it.
+function opaqueFolder(sourceRelativePath, salt) {
+    const folder = sourceRelativePath.split('/').slice(0, -1).join('/');
+    return crypto.createHash('sha256').update(`${salt}\u0000${folder}`).digest('hex').slice(0, 12);
+}
 
 function buildResults({ view, labels, app }) {
     const filesById = new Map(view.files.map((file) => [file.fileId, file]));
+    const salt = crypto.randomUUID();
+    const todayOf = new Map();
+    for (const group of view.baselines.preserve.groups) for (const id of group.fileIds) todayOf.set(id, group.songName);
+    const fileEntry = (id) => {
+        const file = filesById.get(id);
+        return {
+            fileId: file.fileId,
+            name: file.name,
+            type: file.type,
+            cloud: file.cloudPlaceholder || undefined,
+            sizeBytes: file.sizeBytes,
+            modifiedAt: file.modifiedAt,
+            durationMs: file.durationMs || undefined,
+            folderId: opaqueFolder(file.sourceRelativePath, salt),
+            versionLabel: file.versionLabel || undefined,
+            stemPart: file.stemPart || undefined,
+            today: todayOf.get(file.fileId)
+        };
+    };
     return {
         format: 'importer-lab-results',
-        version: 1,
+        version: 2,
         exportedAt: new Date().toISOString(),
         app,
         scan: {
@@ -22,14 +51,23 @@ function buildResults({ view, labels, app }) {
             files: view.stats.files,
             typeCounts: view.notes.typeCounts,
             cloudPlaceholders: view.notes.placeholdersFound,
-            reusedFromLastScan: view.notes.reusedFromStore
+            reusedFromLastScan: view.notes.reusedFromStore,
+            projectsRead: view.notes.projectsRead,
+            engineVersion: view.engineVersion,
+            policyVersion: view.policyVersion
         },
         songs: view.songs.map((song) => ({
             name: song.name,
+            kind: song.kind,
+            band: song.band,
+            confidence: song.confidence,
             unsure: song.unsure,
             counts: song.counts,
-            files: song.fileIds.map((id) => ({ name: filesById.get(id).name, type: filesById.get(id).type, cloud: filesById.get(id).cloudPlaceholder || undefined }))
+            versions: song.versions.map((version) => version.label),
+            possibleMatches: song.possibleMatches.map((match) => match.songName),
+            files: song.fileIds.map(fileEntry)
         })),
+        otherFiles: view.files.filter((file) => file.type === 'unknown').map((file) => fileEntry(file.fileId)),
         todaysImporter: {
             keepPrefixes: view.baselines.preserve.stats,
             stripPrefixes: view.baselines.strip.stats

@@ -1,8 +1,9 @@
 'use strict';
 
-// M1 pipeline: crawl -> classify -> baseline. Produces a ProposedCatalog (contract 1.0.0).
-// Clues, scoring and bands (M2) are not built yet, so `songs` is empty and every file is
-// `unassigned`; the catalog screen shows the baseline result.
+// The engine pipeline (SPEC section 5), steps 1–6 and 8:
+//   crawl -> classify -> (placeholders) -> baseline (today's importer, both modes)
+//   -> read clues (non-placeholders only) -> group, score, band -> ProposedCatalog (contract 1.1.0).
+// Step 7 (the AI pass) arrives in M4.
 
 const { CONTRACT_VERSION } = require('../../contract');
 const { crawl } = require('./crawl');
@@ -10,11 +11,15 @@ const { classifyItem } = require('./adapters/classifier');
 const { runBaseline } = require('./adapters/baseline');
 const { fileIdentity } = require('./adapters/identity');
 const { isPlaceholderCandidate, confirmPlaceholders } = require('./placeholder');
+const { groupCatalog } = require('./group');
+const { readClues } = require('./read-clues');
+const { POLICY_VERSION: NAME_POLICY_VERSION } = require('./names');
+const scoring = require('../policy/scoring-v1.json');
 
-const ENGINE_VERSION = '0.1.0-m1';
-const POLICY_VERSION = 'none-m1';
+const ENGINE_VERSION = '0.2.0-m2';
+const POLICY_VERSION = `${NAME_POLICY_VERSION}+${scoring.version}`;
 const PROGRESS_EVERY = 250;
-// While crawling, today's importer is re-run on the files found so far, so songs can appear live.
+// While crawling, the engine groups the files found so far, so songs appear as they are found.
 const PREVIEW_MIN_FILES = 200;
 const PREVIEW_GROWTH = 1.5;
 
@@ -53,7 +58,7 @@ function toProposedFile(item, classification, cloudPlaceholder) {
         cloudPlaceholder,
         // The import review wizard's rule (library-import-session.cjs:1767).
         needsReview: classification.confidence < 0.8 || classification.type === 'unknown',
-        // Type corrections come with the wizard's file rows in M2 (session adapter).
+        // Type corrections come with the wizard's file rows (session adapter).
         allowedTypes: []
     };
 }
@@ -69,6 +74,23 @@ function countTypes(files) {
     return counts;
 }
 
+function groupingOptions(request, links = []) {
+    const options = request.options;
+    return {
+        mergeRule: options.mergeRule,
+        groupEdits: options.groupEdits !== false,
+        courseNamespaces: options.catalogRules?.courseNamespaces || [],
+        links
+    };
+}
+
+// Facts from the projects in a song (contract: bpm is an integer, as track_groups.bpm).
+function songFacts(song) {
+    const project = song.files.map((member) => member.project).find((facts) => facts && (facts.tempo || facts.lengthSec));
+    if (!project) return {};
+    return { bpm: project.tempo ? Math.round(project.tempo) : undefined, lengthSec: project.lengthSec ? Math.round(project.lengthSec) : undefined };
+}
+
 async function scanCatalog(request, hooks = {}) {
     validateRequest(request);
     const { previous = () => null, onProgress = () => {}, isCancelled = () => false, excludePaths = [], userRules = [] } = hooks;
@@ -79,10 +101,11 @@ async function scanCatalog(request, hooks = {}) {
     let nextPreviewAt = PREVIEW_MIN_FILES;
     let reused = 0;
 
-    // Song names today's importer finds in the files so far; only new names are reported.
+    // Song names the engine finds in the files so far (names only); only new names are reported.
     function preview() {
-        const files = entries.map(({ item, classification }) => toProposedFile(item, classification, false));
-        const newSongs = runBaseline(files, { preserveSourceIdentity: true }).groups.map((group) => group.songName).filter((name) => !previewSongs.has(name));
+        const files = entries.map(({ item, classification }) => toProposedFile(item, classification, false)).filter((file) => file.type !== 'unknown');
+        const names = groupCatalog(files, groupingOptions(request)).songs.filter((song) => song.kind === 'song').map((song) => song.songName);
+        const newSongs = names.filter((name) => !previewSongs.has(name));
         for (const name of newSongs) previewSongs.add(name);
         return newSongs;
     }
@@ -112,60 +135,74 @@ async function scanCatalog(request, hooks = {}) {
     const confirmed = await confirmPlaceholders(unchecked);
 
     const includePlaceholders = request.options.includeCloudPlaceholders === 'list';
-    const files = [];
-    const records = [];
+    const kept = [];
     let placeholdersFound = 0;
     for (const { item, classification } of entries) {
         const derived = item.stored || { cloudPlaceholder: confirmed.has(item.path) };
-        records.push({ item, derived });
         if (derived.cloudPlaceholder) placeholdersFound += 1;
-        if (derived.cloudPlaceholder && !includePlaceholders) continue;
         const file = toProposedFile(item, classification, derived.cloudPlaceholder);
         if (file.type !== 'unknown') file.canonicalIdentity = fileIdentity(file);
-        files.push(file);
+        kept.push({ item, file, derived, included: !(derived.cloudPlaceholder && !includePlaceholders) });
     }
     if (isCancelled()) return { cancelled: true };
 
+    progress('clues');
+    const included = kept.filter((entry) => entry.included);
+    const grouped = included.filter((entry) => entry.file.type !== 'unknown');
+    const clues = await readClues(grouped, { onProgress: (read) => progress('clues', { projectsRead: read }) });
+    if (isCancelled()) return { cancelled: true };
+
     progress('baseline');
+    const files = included.map((entry) => entry.file);
     const existingGroups = request.existingSongs || [];
     const baseline = runBaseline(files, { preserveSourceIdentity: true, existingGroups });
-    const baselineStripNamespaces = runBaseline(files, { preserveSourceIdentity: false, existingGroups });
+    const baselineStripPrefixes = runBaseline(files, { preserveSourceIdentity: false, existingGroups });
 
+    progress('grouping');
+    const engine = groupCatalog(files.filter((file) => file.type !== 'unknown'), { ...groupingOptions(request, clues.links), existingSongs: existingGroups });
+    for (const song of engine.songs) song.facts = songFacts(song);
+    const realSongs = engine.songs.filter((song) => song.kind === 'song');
+    const groupedFiles = realSongs.reduce((sum, song) => sum + song.files.length, 0);
+    const sureFiles = realSongs.filter((song) => song.band === 'sure').reduce((sum, song) => sum + song.files.length, 0);
     const typeCounts = countTypes(files);
 
     const catalog = {
         contractVersion: CONTRACT_VERSION,
         engineVersion: ENGINE_VERSION,
         policyVersion: POLICY_VERSION,
-        songs: [],
-        unassigned: files,
-        duplicates: [],
+        songs: engine.songs,
+        unassigned: files.filter((file) => file.type === 'unknown'),
+        duplicates: clues.duplicates,
         baseline: withoutLog(baseline),
+        baselineStripPrefixes: withoutLog(baselineStripPrefixes),
         stats: {
             files: files.length,
-            songs: 0,
-            autoMatchedShare: 0,
+            songs: realSongs.length,
+            autoMatchedShare: groupedFiles ? Math.round((sureFiles / groupedFiles) * 1000) / 1000 : 0,
             durationMs: Date.now() - startedAt,
             aiCostUsd: 0,
             cappedAt: null,
             placeholdersSkipped: includePlaceholders ? 0 : placeholdersFound
         }
     };
-    const finalSongs = baseline.groups.map((group) => group.songName);
+    const finalSongs = realSongs.map((song) => song.songName);
     progress('done', { files: files.length, typeCounts, songsFound: finalSongs.length, newSongs: finalSongs.filter((name) => !previewSongs.has(name)) });
 
     return {
         cancelled: false,
         catalog,
-        baselineStripNamespaces: withoutLog(baselineStripNamespaces),
+        baselineStripNamespaces: catalog.baselineStripPrefixes,
         notes: {
             ...counters,
             typeCounts,
             placeholdersFound,
             reusedFromStore: reused,
+            projectsRead: clues.projectsRead,
+            links: clues.links.length,
+            learned: engine.context,
             baselineLog: baseline.log
         },
-        records
+        records: kept.map(({ item, derived }) => ({ item, derived }))
     };
 }
 

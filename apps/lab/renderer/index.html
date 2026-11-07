@@ -144,7 +144,10 @@
                     </thead>
                     <tbody id="catalogRows"></tbody>
                 </table>
-                <p id="otherFiles" class="lab-muted lab-spaced"></p>
+                <div class="lab-actions lab-spaced">
+                    <button id="toggleOtherKinds" class="std-inline-btn" type="button" hidden></button>
+                </div>
+                <p id="otherFiles" class="lab-muted"></p>
             </section>
 
             <!-- Song detail -->
@@ -158,6 +161,18 @@
                 </div>
                 <div class="std-modal-section-label">Why these files are together</div>
                 <ul id="songReasons" class="lab-reasons"></ul>
+                <div id="songMatchesBlock" hidden>
+                    <div class="std-modal-section-label lab-spaced">Might be the same song as</div>
+                    <div id="songMatches" class="std-list"></div>
+                </div>
+                <div id="songVersionsBlock" hidden>
+                    <div class="std-modal-section-label lab-spaced">Versions</div>
+                    <div id="songVersions" class="std-list"></div>
+                </div>
+                <div id="songStemsBlock" hidden>
+                    <div class="std-modal-section-label lab-spaced">Stem sets</div>
+                    <div id="songStems" class="std-list"></div>
+                </div>
                 <div class="std-modal-section-label lab-spaced">Files</div>
                 <table class="display lab-grid">
                     <thead>
@@ -185,13 +200,14 @@
                     </div>
                 </div>
                 <div data-lab-panel="compare">
-                    <p class="lab-lede">Today's importer on the same files, in its two modes. The new engine's own grouping arrives in M2.</p>
+                    <p class="lab-lede">The new engine against today's importer (keep-prefixes mode, the review wizard's) on the same files. Changes first.</p>
                     <div id="compareStats" class="std-stat-grid lab-stats"></div>
                     <table class="display lab-grid">
                         <thead>
                             <tr>
-                                <th>Keep collaborator prefixes (review wizard)</th>
-                                <th>Strip learned prefixes (automatic import)</th>
+                                <th>New engine</th>
+                                <th>Change</th>
+                                <th>Today's importer</th>
                             </tr>
                         </thead>
                         <tbody id="compareRows"></tbody>
@@ -203,7 +219,7 @@
                             <span class="std-form-label">Merge rule</span>
                             <div class="std-radio-group">
                                 <label class="std-radio"><input class="std-radio-input" type="radio" name="mergeRule" value="exact-identity-only" /><span class="std-radio-dot"></span><span class="std-radio-label">Exact identity only</span></label>
-                                <label class="std-radio"><input class="std-radio-input" type="radio" name="mergeRule" value="multi-clue" /><span class="std-radio-dot"></span><span class="std-radio-label">Multi-clue (takes effect with scoring in M2)</span></label>
+                                <label class="std-radio"><input class="std-radio-input" type="radio" name="mergeRule" value="multi-clue" /><span class="std-radio-dot"></span><span class="std-radio-label">Multi-clue (a second, different clue can make a merge sure)</span></label>
                             </div>
                         </div>
                         <div class="std-form-row">
@@ -212,6 +228,25 @@
                                 <label class="std-radio"><input class="std-radio-input" type="radio" name="includeCloudPlaceholders" value="list" /><span class="std-radio-dot"></span><span class="std-radio-label">List them (never opened, never downloaded)</span></label>
                                 <label class="std-radio"><input class="std-radio-input" type="radio" name="includeCloudPlaceholders" value="skip" /><span class="std-radio-dot"></span><span class="std-radio-label">Leave them out</span></label>
                             </div>
+                        </div>
+                        <label class="std-toggle">
+                            <input id="groupEdits" class="std-toggle-input" type="checkbox" />
+                            <span class="std-toggle-rail"></span>
+                            <span class="std-toggle-label">Short, long and cut-down edits are versions of one song</span>
+                        </label>
+                        <label class="std-form-row">
+                            <span class="std-form-label">Course prefixes</span>
+                            <input id="courseNamespaces" class="std-form-input" type="text" placeholder="for example: tutorial series, course codes" />
+                            <span class="std-form-help">Comma-separated. Files starting with these are course material, not songs. Applies from the next scan.</span>
+                        </label>
+                        <div class="std-form-row">
+                            <span class="std-form-label">Songs already in your Library</span>
+                            <div class="lab-actions">
+                                <button id="loadExistingSongs" class="std-modal-btn std-modal-btn--secondary" type="button">Load snapshot…</button>
+                                <button id="clearExistingSongs" class="std-inline-btn" type="button" hidden>Remove</button>
+                                <span id="existingSongsStatus" class="lab-muted">None loaded</span>
+                            </div>
+                            <span id="existingSongsError" class="std-form-error" hidden></span>
                         </div>
                         <label class="std-toggle lab-disabled" title="The AI pass arrives in milestone M4">
                             <input class="std-toggle-input" type="checkbox" disabled />

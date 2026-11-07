@@ -1,0 +1,40 @@
+{
+    "version": "lab-scoring-1",
+    "fitted": false,
+    "about": "Clue weights and band thresholds for the Importer Lab engine (SPEC steps 5 and 6). These are starting values set by hand until marked catalogs exist; M3 fits them on marks. Never change them in code: change this file and its version.",
+    "weights": {
+        "exactIdentity": 0.97,
+        "nameRules": {
+            "marker": 0.97,
+            "format": 0.97,
+            "tech": 0.95,
+            "repeat": 0.93,
+            "stage": 0.92,
+            "version": 0.92,
+            "namespace": 0.9,
+            "category": 0.9,
+            "render": 0.88,
+            "date": 0.85,
+            "edit": 0.8,
+            "descriptor": 0.8,
+            "contributor": 0.78
+        },
+        "folder": 0.5,
+        "timing": 0.6,
+        "projectContents": 0.6,
+        "sharedSamples": 0.7,
+        "duplicate": 0.99,
+        "exportBatch": 0.9
+    },
+    "bands": {
+        "sure": 0.95,
+        "unsure": 0.6,
+        "precheck": 0.85,
+        "rivalGap": 0.15,
+        "minClueTypes": 2
+    },
+    "similarNames": {
+        "jaroWinkler": 0.93,
+        "minLength": 6
+    }
+}

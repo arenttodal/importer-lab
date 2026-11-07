@@ -30,8 +30,10 @@ bands arrive in M2.
 3. The first time a protected place is read (Desktop, Documents, Downloads, iCloud Drive or a drive),
    the app explains the macOS permission prompt; click **Allow** when macOS asks.
 4. Counts and song names appear while it reads. **Cancel** stops at any time.
-5. **Your catalog** lists the songs, with the ones to check first at the top. Click a song for its files
-   and the reasons they are together.
+5. **Your catalog** lists the songs, with the ones to check first at the top. Templates, course
+   material, sample packs and stem-only sets are not counted as songs; a button shows them. Click a
+   song for its files, the reasons they are together, its versions, stem sets, project facts (tempo,
+   length) and songs it might be the same as.
 6. **This is wrong** on a song or a file saves a mark in two clicks.
 7. **Send results to the team** saves one file (names, counts, marks and timings — no paths, no audio)
    and shows it in Finder, ready to attach to a message.
@@ -41,7 +43,13 @@ Getting around: **Back** (top left) on every step, **Home** and **New scan** (to
 scans with **Open** and **Delete** (deleting removes only the saved results, never music files).
 
 Team tools (compare with today's importer, scan options, metrics, logs) are hidden: turn on
-**Settings → Show Lab tools** (the gear, or ⌘,) and a **Lab** button and menu appear.
+**Settings → Show Lab tools** (the gear, or ⌘,) and a **Lab** button and menu appear. Scan options:
+merge rule (exact identity only, or multi-clue), cloud placeholders (list or leave out), edits as
+versions, **Course prefixes** (comma-separated words that mark course material in this catalog), and
+**Songs already in your Library** (load a snapshot JSON exported from the app; an empty or malformed
+file is refused). Options apply from the next scan.
+
+How songs are grouped, and every failure of today's importer the lab fixes, is in `docs/FINDINGS.md`.
 
 ## What it writes
 

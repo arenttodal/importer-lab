@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.2.0 — 2026-11-07 (M2: the engine groups songs)
+
+What changed, in plain words:
+- Songs are now grouped by the new engine, not today's importer. Mix, master, stage and render words
+  ("final", "wip", "pitched", "instr only"…), file formats and audio specs, take and tempo numbers,
+  repeated words, category prefixes, contributor names and the "Project PD" backup marker no longer
+  split a song: they become version labels you can see in the song.
+- Orchestral and trailer stems (whooshes, textures, choirs, string shorts, lows…) and parts exported
+  together with a mix attach to their song as a stem set instead of becoming songs.
+- "Untitled N" projects, different dated sessions of a series ("Morning 5 - Friday April 21" vs
+  "April 28") and different numbered songs in different folders are no longer merged.
+- Templates, course material and sample-pack parts are their own kinds, left out of the song count.
+- Each song shows how sure the engine is: sure, check, or unclear. Merges based only on the new name
+  rules are never automatic; they wait under "Check these first".
+- Song detail: versions, stem sets, tempo and length from Ableton projects, and "Might be the same song
+  as" for near-identical names (never merged automatically).
+- The app reads Ableton projects, Logic package contents, WAV/AIFF lengths, export batches, shared
+  samples, save times and identical audio — only for files on the Mac; cloud placeholders are never
+  opened.
+- Lab tools: today-vs-engine comparison, edits-as-versions switch, course prefixes, a snapshot of songs
+  already in the Library, and metrics including marks.
+- "Send results to the team" (format 2) adds opaque folder ids, sizes, dates, lengths, version labels
+  and stem parts — still no paths and no audio.
+- `docs/FINDINGS.md` tracks every finding row with its status and build. Contract 1.1.0.
+
 ## 0.1.1 — 2026-11-07 (navigation)
 
 - Back on every step, Home and New scan in the header after the welcome screen.

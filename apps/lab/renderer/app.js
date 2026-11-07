@@ -7,7 +7,10 @@
 const api = window.labAPI;
 const $ = (id) => document.getElementById(id);
 
-const state = { folders: [], view: null, marks: [], song: null, settings: { showLabTools: false, scanOptions: {} }, liveSongs: [], showAllLive: false, scanning: false };
+const state = { folders: [], view: null, marks: [], song: null, settings: { showLabTools: false, scanOptions: {} }, liveSongs: [], showAllLive: false, scanning: false, showOtherKinds: false };
+
+const KIND_LABEL = { template: 'Template', course: 'Course', 'sample-pack': 'Sample pack', 'stem-set': 'Stems only' };
+const BAND_LABEL = { unsure: 'Check', unclear: 'Unclear' };
 
 const TYPE_LABEL = { bounces: 'Bounce', stems: 'Stem', projects: 'Project', videos: 'Video', unknown: 'Other' };
 const MARK_LABEL = {
@@ -178,7 +181,9 @@ async function startScan() {
 const PHASE_TEXT = {
     crawl: 'Reading folders…',
     placeholders: 'Checking which files are only in the cloud…',
-    baseline: 'Putting files together into songs…',
+    clues: 'Reading projects and audio lengths (files on this Mac only)…',
+    baseline: "Running today's importer for comparison…",
+    grouping: 'Putting files together into songs…',
     done: 'Done'
 };
 
@@ -216,8 +221,15 @@ function scanEnded(text) {
 function onScanDone({ view, marks }) {
     state.view = view;
     state.marks = marks;
-    $('countSongs').textContent = view.songs.length.toLocaleString();
-    scanEnded(`Found ${view.songs.length.toLocaleString()} songs in ${view.stats.files.toLocaleString()} files (${(view.stats.durationMs / 1000).toFixed(1)} s).`);
+    // The final list: names seen while scanning that are still songs, then any the last pass found.
+    const finalNames = view.songs.filter((song) => song.kind === 'song').map((song) => song.name);
+    const finalSet = new Set(finalNames);
+    const kept = [...new Set(state.liveSongs)].filter((name) => finalSet.has(name));
+    const keptSet = new Set(kept);
+    state.liveSongs = [...kept, ...[...finalSet].filter((name) => !keptSet.has(name))];
+    renderLiveSongs();
+    $('countSongs').textContent = view.stats.songs.toLocaleString();
+    scanEnded(`Found ${view.stats.songs.toLocaleString()} songs in ${view.stats.files.toLocaleString()} files (${(view.stats.durationMs / 1000).toFixed(1)} s).`);
     $('seeCatalog').hidden = false;
     $('scanHeading').textContent = 'Your songs are ready';
     $('liveSongsLabel').textContent = 'Songs found';
@@ -243,15 +255,23 @@ function markChips(marks) {
 
 function songRow(song) {
     const cloud = song.reasons.some((reason) => reason.includes('in the cloud'));
+    const chips = [
+        song.kind !== 'song' ? `<span class="std-chip">${KIND_LABEL[song.kind]}</span>` : '',
+        song.kind === 'song' && BAND_LABEL[song.band] ? `<span class="std-chip">${BAND_LABEL[song.band]}</span>` : '',
+        song.existingSongId ? '<span class="std-chip">In your Library</span>' : '',
+        cloud ? '<span class="std-chip">Cloud</span>' : ''
+    ].join('');
+    const versions = song.versions.length > 1 ? ` · ${song.versions.length} versions` : '';
+    const matches = song.possibleMatches.length ? ` · might match ${song.possibleMatches.length}` : '';
     return `<tr class="datatable-row" data-song="${escapeHtml(song.key)}">
         <td class="song-name-cell" data-column="song_name">
             <div class="track-name-content flex-1 min-w-0">
                 <div class="song-name-line flex items-center gap-1">
                     <p class="text-sm text-dark-text truncate">${escapeHtml(song.name)}</p>
-                    ${cloud ? '<span class="std-chip">Cloud</span>' : ''}
+                    ${chips}
                     ${markChips(marksFor('song', song.name))}
                 </div>
-                <div class="lab-row-meta">${escapeHtml(song.countsLine)}</div>
+                <div class="lab-row-meta">${escapeHtml(song.countsLine + versions + matches)}</div>
             </div>
         </td>
         <td data-column="files">${song.fileIds.length}</td>
@@ -268,11 +288,18 @@ function renderCatalog() {
     const view = state.view;
     if (!view) return;
     const byName = (a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' });
-    const unsure = view.songs.filter((song) => song.unsure).sort(byName);
-    const sure = view.songs.filter((song) => !song.unsure).sort(byName);
+    const songs = view.songs.filter((song) => song.kind === 'song');
+    const check = songs.filter((song) => song.band !== 'sure').sort((a, b) => (a.band === b.band ? Number(b.precheck) - Number(a.precheck) || byName(a, b) : a.band === 'unsure' ? -1 : 1));
+    const sure = songs.filter((song) => song.band === 'sure').sort(byName);
+    const others = view.songs.filter((song) => song.kind !== 'song').sort((a, b) => a.kind.localeCompare(b.kind) || byName(a, b));
     const where = view.roots.map((root) => root.name).join(', ');
-    $('catalogCount').textContent = `${view.songs.length.toLocaleString()} songs from ${view.stats.files.toLocaleString()} files in ${where}.`;
-    $('catalogRows').innerHTML = groupRows('Check these first', unsure) + groupRows('Songs', sure);
+    $('catalogCount').textContent = `${songs.length.toLocaleString()} songs from ${view.stats.files.toLocaleString()} files in ${where}.`;
+    $('catalogRows').innerHTML = groupRows('Check these first', check) + groupRows('Songs', sure) + (state.showOtherKinds ? groupRows('Not counted as songs', others) : '');
+    const kindCounts = {};
+    for (const song of others) kindCounts[song.kind] = (kindCounts[song.kind] || 0) + 1;
+    const summary = Object.entries(kindCounts).map(([kind, count]) => `${count} ${KIND_LABEL[kind].toLowerCase()}${count === 1 ? '' : 's'}`).join(', ');
+    $('toggleOtherKinds').hidden = others.length === 0;
+    $('toggleOtherKinds').textContent = state.showOtherKinds ? 'Hide templates, course material, sample packs and stem sets' : `Show what is not counted as songs (${summary})`;
     $('otherFiles').textContent = view.otherFiles ? `${view.otherFiles.toLocaleString()} other files (documents, images and so on) were left out.` : '';
     const unreadable = view.notes.unreadableFolders;
     $('unreadableAlert').hidden = unreadable === 0;
@@ -294,21 +321,49 @@ function openSong(key) {
     navigate('song');
 }
 
+function formatLength(seconds) {
+    const total = Math.round(seconds);
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
 function renderSong() {
     const song = state.song;
     const filesById = new Map(state.view.files.map((file) => [file.fileId, file]));
+    const facts = [song.facts.bpm ? `${song.facts.bpm} BPM` : null, song.facts.lengthSec ? formatLength(song.facts.lengthSec) : null].filter(Boolean).join(' · ');
+    const band = song.kind !== 'song' ? KIND_LABEL[song.kind] : { sure: 'Sure', unsure: 'Check this', unclear: 'Unclear' }[song.band];
     $('songTitle').textContent = song.name;
-    $('songCounts').textContent = song.countsLine;
+    $('songCounts').textContent = [song.countsLine, facts, band].filter(Boolean).join(' · ');
     $('songActions').innerHTML = `${markChips(marksFor('song', song.name))}<button class="std-modal-btn std-modal-btn--secondary" type="button" data-wrong-song="${escapeHtml(song.key)}">This is wrong</button>`;
     $('songReasons').innerHTML = song.reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join('');
+
+    $('songMatchesBlock').hidden = song.possibleMatches.length === 0;
+    $('songMatches').innerHTML = song.possibleMatches
+        .map((match) => `<button class="std-list-row lab-pick" type="button" data-open-song="${escapeHtml(match.proposalId)}"><span class="std-list-label">${escapeHtml(match.songName)}</span><span class="std-list-meta">${escapeHtml(match.reason)}</span></button>`)
+        .join('');
+
+    const versions = song.versions.filter((version) => version.fileIds.length);
+    $('songVersionsBlock').hidden = versions.length < 2;
+    $('songVersions').innerHTML = versions
+        .map((version) => `<div class="std-list-row"><span class="std-list-label">${escapeHtml(version.label)}<br /><span class="std-list-meta">${version.fileIds.map((id) => escapeHtml(filesById.get(id)?.name || '')).join(' · ')}</span></span></div>`)
+        .join('');
+
+    $('songStemsBlock').hidden = song.stemSets.length === 0;
+    $('songStems').innerHTML = song.stemSets
+        .map((set) => {
+            const parts = set.fileIds.map((id) => filesById.get(id)).map((file) => escapeHtml(file?.stemPart || file?.name || '')).join(' · ');
+            const mix = set.matchesFileId ? ` · goes with ${escapeHtml(filesById.get(set.matchesFileId)?.name || '')}` : '';
+            return `<div class="std-list-row"><span class="std-list-label">${escapeHtml(set.label)} · ${set.fileIds.length} stems<br /><span class="std-list-meta">${parts}${mix}</span></span></div>`;
+        })
+        .join('');
+
     $('songFiles').innerHTML = song.fileIds
         .map((id) => filesById.get(id))
         .map(
             (file) => `<tr class="datatable-row">
-                <td><span class="std-chip">${TYPE_LABEL[file.type]}</span></td>
+                <td><span class="std-chip">${file.stemPart ? 'Stem' : TYPE_LABEL[file.type]}</span></td>
                 <td>
-                    <div class="text-sm text-dark-text">${escapeHtml(file.name)} ${file.cloudPlaceholder ? '<span class="std-chip">Cloud</span>' : ''} ${markChips(marksFor('file', song.name, file.fileId))}</div>
-                    <div class="lab-row-meta">${escapeHtml(file.classifierReason)}${file.needsReview ? ' · type is a guess' : ''}</div>
+                    <div class="text-sm text-dark-text">${escapeHtml(file.name)} ${file.latest ? '<span class="std-chip">Latest</span>' : ''} ${file.cloudPlaceholder ? '<span class="std-chip">Cloud</span>' : ''} ${markChips(marksFor('file', song.name, file.fileId))}</div>
+                    <div class="lab-row-meta">${escapeHtml([file.versionLabel ? `Version: ${file.versionLabel}` : null, file.stemPart ? `Stem: ${file.stemPart}` : null, file.classifierReason].filter(Boolean).join(' · '))}</div>
                 </td>
                 <td class="lab-muted">${escapeHtml(folderOf(file))}</td>
                 <td class="lab-muted">${escapeHtml(new Date(file.modifiedAt).toLocaleDateString())}</td>
@@ -429,6 +484,10 @@ async function exportResults() {
 function applySettings(settings) {
     state.settings = settings;
     $('openLab').hidden = !settings.showLabTools;
+    $('groupEdits').checked = settings.scanOptions.groupEdits !== false;
+    $('courseNamespaces').value = (settings.scanOptions.courseNamespaces || []).join(', ');
+    $('existingSongsStatus').textContent = settings.existingSongs ? `${settings.existingSongs.count.toLocaleString()} songs loaded` : 'None loaded';
+    $('clearExistingSongs').hidden = !settings.existingSongs;
     for (const input of document.querySelectorAll('input[name="mergeRule"], input[name="includeCloudPlaceholders"]')) {
         input.checked = settings.scanOptions[input.name] === input.value;
     }
@@ -451,40 +510,63 @@ function showLabSection(section) {
     for (const panel of document.querySelectorAll('[data-lab-panel]')) panel.hidden = panel.dataset.labPanel !== section;
 }
 
-function compareLabel(group, stripByFile) {
-    const stripGroups = new Set(group.fileIds.map((id) => stripByFile.get(id)));
-    if (stripGroups.size > 1) return 'Split';
-    const [other] = stripGroups;
-    if (other.fileIds.length > group.fileIds.length) return 'Merged';
-    return other.songName === group.songName ? 'Same' : 'Renamed';
+// For each engine song: did today's importer have it the same, or spread it over several songs
+// (the engine merged them), or put part of it into another song (moved)?
+function compareRows(view) {
+    const todayOf = new Map();
+    for (const group of view.baselines.preserve.groups) for (const id of group.fileIds) todayOf.set(id, group);
+    return view.songs
+        .filter((song) => song.kind === 'song')
+        .map((song) => {
+            const todays = [...new Set(song.fileIds.map((id) => todayOf.get(id)).filter(Boolean))];
+            const outside = todays.some((group) => group.fileIds.some((id) => !song.fileIds.includes(id)));
+            const change = todays.length > 1 ? `Merged ${todays.length}` : outside ? 'Split from' : todays[0] && todays[0].songName !== song.name ? 'Renamed' : 'Same';
+            return { song, todays, change };
+        })
+        .sort((a, b) => Number(a.change === 'Same') - Number(b.change === 'Same') || b.todays.length - a.todays.length || a.song.name.localeCompare(b.song.name));
 }
 
 function renderLab() {
     const view = state.view;
     if (!view) return;
-    const { preserve, strip } = view.baselines;
-    const stripByFile = new Map(strip.groups.flatMap((group) => group.fileIds.map((id) => [id, group])));
+    const songs = view.songs.filter((song) => song.kind === 'song');
+    const count = (band) => songs.filter((song) => song.band === band).length;
     const tile = (value, label) => `<div class="std-stat-tile"><div class="std-stat-value">${value}</div><div class="std-stat-label">${label}</div></div>`;
-    $('compareStats').innerHTML = tile(view.stats.files, 'Files') + tile(preserve.groups.length, 'Songs, keep prefixes') + tile(strip.groups.length, 'Songs, strip prefixes') + tile(`${preserve.tier3Count} / ${strip.tier3Count}`, 'Ambiguous singletons');
-    $('compareRows').innerHTML = [...preserve.groups]
-        .sort((a, b) => a.songName.localeCompare(b.songName))
-        .map((group) => {
-            const label = compareLabel(group, stripByFile);
-            const stripNames = [...new Set(group.fileIds.map((id) => stripByFile.get(id).songName))];
-            return `<tr class="datatable-row"><td>${escapeHtml(group.songName)} <span class="lab-muted">(${group.fileIds.length})</span></td><td>${label === 'Same' ? '' : `<span class="std-chip">${label}</span> `}${stripNames.map(escapeHtml).join(', ')}</td></tr>`;
-        })
+    $('compareStats').innerHTML =
+        tile(view.stats.files.toLocaleString(), 'Files') +
+        tile(view.baselines.preserve.groups.length.toLocaleString(), "Songs today") +
+        tile(songs.length.toLocaleString(), 'Songs, new engine') +
+        tile(`${Math.round(view.stats.autoMatchedShare * 100)}%`, 'Files in sure songs') +
+        tile(`${count('unsure')} / ${count('unclear')}`, 'Check / unclear');
+    $('compareRows').innerHTML = compareRows(view)
+        .slice(0, 500)
+        .map(
+            ({ song, todays, change }) => `<tr class="datatable-row" data-song="${escapeHtml(song.key)}"><td>${escapeHtml(song.name)} <span class="lab-muted">(${song.fileIds.length})</span></td><td>${change === 'Same' ? '' : `<span class="std-chip">${escapeHtml(change)}</span>`}</td><td>${todays.map((group) => escapeHtml(group.songName)).join(', ')}</td></tr>`
+        )
         .join('');
+    const kinds = {};
+    for (const song of view.songs) kinds[song.kind] = (kinds[song.kind] || 0) + 1;
+    const marks = state.marks;
     api.getInfo().then((info) => {
         const rows = [
             ['Files', view.stats.files],
-            ['Folders read', view.notes.folders],
-            ['Folders not readable', view.notes.unreadableFolders],
-            ['Symlinks skipped', view.notes.symlinksSkipped],
-            ['Cloud placeholders', view.notes.placeholdersFound],
+            ['Songs: new engine / today', `${songs.length} / ${view.baselines.preserve.groups.length}`],
+            ['Sure / check / unclear', `${count('sure')} / ${count('unsure')} / ${count('unclear')}`],
+            ['Files in sure songs', `${Math.round(view.stats.autoMatchedShare * 100)}%`],
+            ['Not counted as songs', Object.entries(kinds).filter(([kind]) => kind !== 'song').map(([kind, number]) => `${number} ${KIND_LABEL[kind].toLowerCase()}`).join(', ') || 'none'],
+            ['Marks: should be split (false merges)', marks.filter((mark) => mark.kind === 'split').length],
+            ['Marks: should be merged (false splits)', marks.filter((mark) => mark.kind === 'merge').length],
+            ['Marks: file in the wrong song', marks.filter((mark) => mark.kind === 'wrong-song' && mark.target === 'file').length],
+            ['Projects read', view.notes.projectsRead],
+            ['Clue links (timing, samples, batches, duplicates)', view.notes.links],
+            ['Duplicate sets', view.duplicates],
+            ['Contributors learned', view.notes.contributors.join(', ') || 'none'],
+            ['Folders read / not readable', `${view.notes.folders} / ${view.notes.unreadableFolders}`],
+            ['Cloud placeholders (never opened)', view.notes.placeholdersFound],
             ['Reused from the last scan', view.notes.reusedFromStore],
             ['Scan time', `${(view.stats.durationMs / 1000).toFixed(2)} s`],
             ['AI cost', `$${view.stats.aiCostUsd.toFixed(2)}`],
-            ['Engine', view.engineVersion],
+            ['Engine / name and scoring policy', `${view.engineVersion} / ${view.policyVersion}`],
             ['Contract', view.contractVersion],
             ['Main app commit', info.pinnedCommit.slice(0, 8)],
             ['Electron / Node / SQLite', `${info.electron} / ${info.node} / ${info.sqlite}`],
@@ -545,6 +627,22 @@ $('seeCatalog').addEventListener('click', () => navigate('catalog'));
 $('rescan').addEventListener('click', newScan);
 $('exportResults').addEventListener('click', exportResults);
 $('openPrivacy').addEventListener('click', () => api.openPrivacySettings());
+$('toggleOtherKinds').addEventListener('click', () => {
+    state.showOtherKinds = !state.showOtherKinds;
+    renderCatalog();
+});
+$('groupEdits').addEventListener('change', async (event) => applySettings(await api.setSetting('groupEdits', event.target.checked)));
+$('courseNamespaces').addEventListener('change', async (event) => applySettings(await api.setSetting('courseNamespaces', event.target.value)));
+$('loadExistingSongs').addEventListener('click', async () => {
+    $('existingSongsError').hidden = true;
+    try {
+        applySettings(await api.loadExistingSongs());
+    } catch (error) {
+        $('existingSongsError').textContent = cleanError(error);
+        $('existingSongsError').hidden = false;
+    }
+});
+$('clearExistingSongs').addEventListener('click', async () => applySettings(await api.clearExistingSongs()));
 document.querySelector('.lab-main').addEventListener('click', (event) => {
     const undo = event.target.closest('[data-undo]');
     if (undo) return undoMark(undo.dataset.undo);
@@ -552,6 +650,8 @@ document.querySelector('.lab-main').addEventListener('click', (event) => {
     if (wrongSong) return songMenu(wrongSong, state.view.songs.find((song) => song.key === wrongSong.dataset.wrongSong));
     const wrongFile = event.target.closest('[data-wrong-file]');
     if (wrongFile) return fileMenu(wrongFile, state.view.files.find((file) => file.fileId === wrongFile.dataset.wrongFile));
+    const match = event.target.closest('[data-open-song]');
+    if (match) return openSong(match.dataset.openSong);
     const row = event.target.closest('tr[data-song]');
     if (row) openSong(row.dataset.song);
 });

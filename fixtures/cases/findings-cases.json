@@ -1,0 +1,241 @@
+{
+    "about": "Anonymised test cases for docs/FINDINGS.md. Each row follows the pattern of a real failure with invented names (the real names stay in the private findings log and in the git-ignored private/ folder). 'together' lists files that must end up in one song; 'apart' lists files that must end up in different songs; 'proposals' lists pairs that must be proposed for review but not merged; 'kinds' sets the expected kind; 'songs' is the expected number of songs (kind 'song').",
+    "rules": { "courseNamespaces": ["atlas", "engine 1"] },
+    "cases": [
+        {
+            "row": 1,
+            "files": [["Untitled 14.als", "projects"], ["Untitled 37.als", "projects"], ["New Project 2.als", "projects"], ["New Project 5.als", "projects"]],
+            "apart": [["Untitled 14.als", "Untitled 37.als", "New Project 2.als", "New Project 5.als"]]
+        },
+        {
+            "row": 2,
+            "files": [["SKY.wav", "bounces"], ["SKY v2.wav", "bounces"], ["SKY master.wav", "bounces"], ["SKY V2.als", "projects"], ["MG X JC - SKY FINAL.wav", "bounces"]],
+            "together": [["SKY.wav", "SKY v2.wav", "SKY master.wav", "SKY V2.als", "MG X JC - SKY FINAL.wav"]]
+        },
+        {
+            "row": 3,
+            "files": [["Beat Idea - Aug Song.wav", "bounces"], ["Beat Idea - Aug Song Drums.wav", "stems"], ["Beat Idea - Aug Song Bass.wav", "stems"]],
+            "together": [["Beat Idea - Aug Song.wav", "Beat Idea - Aug Song Drums.wav", "Beat Idea - Aug Song Bass.wav"]]
+        },
+        {
+            "row": 5,
+            "files": [["Dune.wav", "bounces"], ["Dune 320kbps.mp3", "bounces"], ["Dune 24bit 48kHz.wav", "bounces"]],
+            "together": [["Dune.wav", "Dune 320kbps.mp3", "Dune 24bit 48kHz.wav"]]
+        },
+        {
+            "row": 6,
+            "files": [["Dune.wav", "bounces"], ["Dune Radio Edit.mp3", "bounces"]],
+            "together": [["Dune.wav", "Dune Radio Edit.mp3"]]
+        },
+        {
+            "row": 12,
+            "files": [
+                ["BRIGHTWAVE - CORALINE PIANO IDEA 1.3.wav", "stems"],
+                ["BRIGHTWAVE - CORALINE PIANO IDEA 2.wav", "stems"],
+                ["BRIGHTWAVE - CORALINE PIANO IDEA #2.wav", "stems"],
+                ["BRIGHTWAVE - CORALINE PIANO IDEA 1.4 W IMAGE.wav", "stems"],
+                ["BRIGHTWAVE - CORALINE PIANO IDEA 1.4 WO IMAGE.wav", "stems"],
+                ["BRIGHTWAVE - CORALINE PIANO IDEAS.wav", "stems"],
+                ["BRIGHTWAVE - CORALINE PIANO IDEAS Project", "projects"],
+                ["BRIGHTWAVE - Other Cue.wav", "bounces"],
+                ["BRIGHTWAVE - Third Cue.wav", "bounces"]
+            ],
+            "together": [["BRIGHTWAVE - CORALINE PIANO IDEA 1.3.wav", "BRIGHTWAVE - CORALINE PIANO IDEA 2.wav", "BRIGHTWAVE - CORALINE PIANO IDEA #2.wav", "BRIGHTWAVE - CORALINE PIANO IDEA 1.4 W IMAGE.wav", "BRIGHTWAVE - CORALINE PIANO IDEA 1.4 WO IMAGE.wav"]],
+            "proposals": [["BRIGHTWAVE - CORALINE PIANO IDEA 2.wav", "BRIGHTWAVE - CORALINE PIANO IDEAS.wav"]],
+            "expectedGap": "\"Ideas\" (plural) is proposed for review, not merged: by row 18, spelling variants are never merged on names alone. Shared samples or timing can confirm it on a catalog whose projects are downloaded."
+        },
+        {
+            "row": 13,
+            "files": [
+                ["ATLAS - Intro v2.wav", "bounces"],
+                ["ATLAS Intro Long 1.3.wav", "bounces"],
+                ["ATLAS Intro Short 1.1.wav", "bounces"],
+                ["ATLAS Intro Short 1.4.wav", "bounces"],
+                ["ATLAS Intro Track 1.wav", "bounces"],
+                ["ATLAS Intro Track 4.wav", "bounces"],
+                ["ATLAS - Intro Piece  Project", "projects"],
+                ["ATLAS - Backing Chords v1.wav", "bounces"]
+            ],
+            "together": [["ATLAS - Intro v2.wav", "ATLAS Intro Long 1.3.wav", "ATLAS Intro Short 1.1.wav", "ATLAS Intro Short 1.4.wav", "ATLAS Intro Track 1.wav", "ATLAS Intro Track 4.wav", "ATLAS - Intro Piece  Project"]],
+            "kinds": { "ATLAS - Intro v2.wav": "course" }
+        },
+        {
+            "row": 14,
+            "files": [["Beat Idea - Velvet Moss Project PD", "projects"], ["Beat Idea - Velvet Moss 1 Suno.wav", "bounces"], ["KESTREL RUN Project PD", "projects"], ["KESTREL RUN v1.wav", "bounces"]],
+            "together": [["Beat Idea - Velvet Moss Project PD", "Beat Idea - Velvet Moss 1 Suno.wav"], ["KESTREL RUN Project PD", "KESTREL RUN v1.wav"]]
+        },
+        {
+            "row": 15,
+            "files": [["Blooper Idea - Paper Moths.wav", "stems"], ["Blooper Idea - Paper Moths2.wav", "stems"], ["Idea - Paper Moths Project", "projects"]],
+            "together": [["Blooper Idea - Paper Moths.wav", "Blooper Idea - Paper Moths2.wav", "Idea - Paper Moths Project"]]
+        },
+        {
+            "row": 16,
+            "files": [["Lumen - Engine Demos Project", "projects"], ["Lumen - Lumen Engine Demos 2 Project", "projects"], ["Lumen - Viking Winter.wav", "bounces"], ["Lumen - Free Monthly Samples Project", "projects"]],
+            "together": [["Lumen - Engine Demos Project", "Lumen - Lumen Engine Demos 2 Project"]]
+        },
+        {
+            "row": 17,
+            "files": [
+                ["HARBOR - CELLO ADDS Project", "projects"],
+                ["HARBOR - THEO CELLO ADDS 1 Project", "projects"],
+                ["QUILL - Take It Over - Theo Adds Project", "projects"],
+                ["QUILL - Take It Over.wav", "bounces"],
+                ["QUILL - Unshakeable Theo Adds 1 Project", "projects"],
+                ["QUILL - Unshakeable.wav", "bounces"]
+            ],
+            "together": [["HARBOR - CELLO ADDS Project", "HARBOR - THEO CELLO ADDS 1 Project"], ["QUILL - Take It Over - Theo Adds Project", "QUILL - Take It Over.wav"], ["QUILL - Unshakeable Theo Adds 1 Project", "QUILL - Unshakeable.wav"]]
+        },
+        {
+            "row": 18,
+            "files": [["MARLOW - Pinwheel MIX V1.1.wav", "bounces"], ["MARLOW - Pinwheels Instr.wav", "bounces"], ["Push Jam - Seawall Walk.wav", "bounces"], ["Push Jam - Seawall Walk Monday.wav", "bounces"]],
+            "apart": [["MARLOW - Pinwheel MIX V1.1.wav", "MARLOW - Pinwheels Instr.wav"], ["Push Jam - Seawall Walk.wav", "Push Jam - Seawall Walk Monday.wav"]],
+            "proposals": [["MARLOW - Pinwheel MIX V1.1.wav", "MARLOW - Pinwheels Instr.wav"], ["Push Jam - Seawall Walk.wav", "Push Jam - Seawall Walk Monday.wav"]]
+        },
+        {
+            "row": 19,
+            "files": [
+                ["TEMPLATE - 2024 ORCHESTRA REVAMPED Project", "projects"],
+                ["Orchestral Template - 1 Project", "projects"],
+                ["Tutorial - Recording Textures Project", "projects"],
+                ["Engine 1 - Depth Project", "projects"],
+                ["STORM - DRUMKIT.wav", "bounces"],
+                ["Synthy Presets.wav", "bounces"],
+                ["Ev - Nyckelharpa - Drones - 1 - E.wav", "bounces"],
+                ["Ev - Nyckelharpa - Drones - 2 - B.wav", "bounces"],
+                ["Ev - Nyckelharpa - Drones - 3 - E.wav", "bounces"],
+                ["Ev - Nyckelharpa - Drones - 4 - A.wav", "bounces"],
+                ["Ev - Nyckelharpa - Drones - 5 - E Soft.wav", "bounces"],
+                ["Ev - Nyckelharpa - Drones - 6 - E deep.wav", "bounces"],
+                ["Real Song.wav", "bounces"]
+            ],
+            "kinds": {
+                "TEMPLATE - 2024 ORCHESTRA REVAMPED Project": "template",
+                "Orchestral Template - 1 Project": "template",
+                "Tutorial - Recording Textures Project": "course",
+                "Engine 1 - Depth Project": "course",
+                "STORM - DRUMKIT.wav": "sample-pack",
+                "Synthy Presets.wav": "sample-pack",
+                "Ev - Nyckelharpa - Drones - 1 - E.wav": "sample-pack",
+                "Real Song.wav": "song"
+            },
+            "songs": 1
+        },
+        {
+            "row": 21,
+            "files": [
+                ["Sync - Glasshouse - Orch Adds 1.4.wav", "bounces"],
+                ["Sync - Glasshouse - Final -  Whooshes.wav", "bounces"],
+                ["Sync - Glasshouse - Final -  Transitions.wav", "bounces"],
+                ["Sync - Glasshouse - Final -  Textures.wav", "bounces"],
+                ["Sync - Glasshouse - Final -  String Shorts.wav", "bounces"],
+                ["Sync - Glasshouse - Final -  String Long.wav", "bounces"],
+                ["Sync - Glasshouse - Final -  LOWS.wav", "bounces"],
+                ["Sync - Glasshouse - Final -  Choirs.wav", "bounces"],
+                ["Sync - Glasshouse - Final -  PIANO.wav", "stems"],
+                ["Corvid - The Lantern - Final Master.wav", "bounces"],
+                ["Corvid - The Lantern - Final Master 1.1 - Stems Woodwinds.wav", "stems"],
+                ["Corvid - The Lantern - Final Master 1.1 - Stems Sub.wav", "stems"],
+                ["Corvid - The Lantern - Final Master 1.1 - Stems Choir.wav", "stems"],
+                ["Nightjar - WIP 1 - - MASTER.wav", "bounces"],
+                ["Nightjar - WIP 1 - UNMASTER - - Woodwinds.wav", "bounces"],
+                ["Nightjar - WIP 1 - UNMASTER - - Stereo Out.wav", "bounces"]
+            ],
+            "together": [
+                ["Sync - Glasshouse - Orch Adds 1.4.wav", "Sync - Glasshouse - Final -  Whooshes.wav", "Sync - Glasshouse - Final -  Choirs.wav", "Sync - Glasshouse - Final -  PIANO.wav"],
+                ["Corvid - The Lantern - Final Master.wav", "Corvid - The Lantern - Final Master 1.1 - Stems Woodwinds.wav", "Corvid - The Lantern - Final Master 1.1 - Stems Sub.wav"],
+                ["Nightjar - WIP 1 - - MASTER.wav", "Nightjar - WIP 1 - UNMASTER - - Woodwinds.wav", "Nightjar - WIP 1 - UNMASTER - - Stereo Out.wav"]
+            ],
+            "songs": 3
+        },
+        {
+            "row": 22,
+            "files": [
+                ["Morning 5 - Tuesday 31 Oct.wav", "bounces"],
+                ["Morning 5 - Tuesday 31 Oct Pitched.wav", "bounces"],
+                ["Piano Morning Jams - Monday Fox Den pt 1.wav", "stems"],
+                ["Piano Morning Jams - Monday Fox Den pt 2.wav", "stems"],
+                ["Piano Morning Jams - Monday Fox Den Reverse.wav", "stems"],
+                ["Morning 5 - Thursday Nov 9 Beat.wav", "bounces"],
+                ["Morning 5 - Thursday Nov 9 Instr Only.wav", "bounces"],
+                ["Morning 5 - Thursday Nov 9 Bass Only.wav", "stems"],
+                ["JC - Comet Run - Instrument Recordings -  Viola.wav", "bounces"],
+                ["JC - Comet Run - Instrument Recordings -  Viola Wet.wav", "bounces"]
+            ],
+            "together": [
+                ["Morning 5 - Tuesday 31 Oct.wav", "Morning 5 - Tuesday 31 Oct Pitched.wav"],
+                ["Piano Morning Jams - Monday Fox Den pt 1.wav", "Piano Morning Jams - Monday Fox Den pt 2.wav", "Piano Morning Jams - Monday Fox Den Reverse.wav"],
+                ["Morning 5 - Thursday Nov 9 Beat.wav", "Morning 5 - Thursday Nov 9 Instr Only.wav", "Morning 5 - Thursday Nov 9 Bass Only.wav"],
+                ["JC - Comet Run - Instrument Recordings -  Viola.wav", "JC - Comet Run - Instrument Recordings -  Viola Wet.wav"]
+            ]
+        },
+        {
+            "row": 23,
+            "files": [
+                ["Corvid - The Lantern .1.1.wav", "bounces"],
+                ["Corvid - The Lantern v2.wav", "bounces"],
+                ["Corvid - The Lantern - Export 1.1.mp3", "bounces"],
+                ["Corvid - The Lantern - Final Master.wav", "bounces"],
+                ["Corvid - The Lantern - Final Remaster w TGP- Done.wav", "bounces"],
+                ["Corvid - The Lantern - Final Touches - Done.wav", "bounces"],
+                ["Corvid - The Lantern - Master V1 - Rich Long.wav", "bounces"],
+                ["Corvid - The Lantern - Master V1 - Score Stage.wav", "bounces"],
+                ["Corvid - The Lantern - Master V2 - Final.wav", "bounces"],
+                ["Corvid - The Lantern - Post Revisit 1.2.wav", "bounces"],
+                ["Corvid - The Lantern - Remastered - FINAL.wav", "bounces"],
+                ["Nightjar - WIP 1 - - MASTER.wav", "bounces"],
+                ["Nightjar - WIP 1 - UNMASTER - - MASTER.wav", "bounces"],
+                ["Nightjar - WIP 1 - UNMASTER2 - - Brass.wav", "stems"]
+            ],
+            "together": [
+                ["Corvid - The Lantern .1.1.wav", "Corvid - The Lantern v2.wav", "Corvid - The Lantern - Export 1.1.mp3", "Corvid - The Lantern - Final Master.wav", "Corvid - The Lantern - Final Remaster w TGP- Done.wav", "Corvid - The Lantern - Final Touches - Done.wav", "Corvid - The Lantern - Master V1 - Rich Long.wav", "Corvid - The Lantern - Master V1 - Score Stage.wav", "Corvid - The Lantern - Master V2 - Final.wav", "Corvid - The Lantern - Post Revisit 1.2.wav", "Corvid - The Lantern - Remastered - FINAL.wav"],
+                ["Nightjar - WIP 1 - - MASTER.wav", "Nightjar - WIP 1 - UNMASTER - - MASTER.wav", "Nightjar - WIP 1 - UNMASTER2 - - Brass.wav"]
+            ],
+            "songs": 2
+        },
+        {
+            "row": 24,
+            "files": [
+                ["Riff Idea - Marble Project", "projects"],
+                ["Riff Idea - Marble 121 og.wav", "bounces"],
+                ["Riff Idea - Marble 121 3rdup.wav", "bounces"],
+                ["Sample - Tin Snow Christmas Project", "projects"],
+                ["Sample - Tin Snow Christmas 165.wav", "bounces"],
+                ["Sample - Tin Snow Christmas2.wav", "bounces"],
+                ["Prophet Loop - Ember Gate - 128 Loop.wav", "bounces"],
+                ["Prophet Loop - Ember Gate 2 - 128 Loop.wav", "bounces"],
+                ["Prophet Loop - Ember Gate 3 - 128 Loop.wav", "bounces"],
+                ["Prophet Loop - Other Riff.wav", "bounces"]
+            ],
+            "together": [
+                ["Riff Idea - Marble Project", "Riff Idea - Marble 121 og.wav", "Riff Idea - Marble 121 3rdup.wav"],
+                ["Sample - Tin Snow Christmas Project", "Sample - Tin Snow Christmas 165.wav", "Sample - Tin Snow Christmas2.wav"],
+                ["Prophet Loop - Ember Gate - 128 Loop.wav", "Prophet Loop - Ember Gate 2 - 128 Loop.wav", "Prophet Loop - Ember Gate 3 - 128 Loop.wav"]
+            ]
+        },
+        {
+            "row": 25,
+            "files": [["KESTREL RUN v1.wav", "bounces"], ["KESTREL RUN.wav 101 BPM 2.wav", "bounces"], ["KESTREL RUN Project PD", "projects"]],
+            "together": [["KESTREL RUN v1.wav", "KESTREL RUN.wav 101 BPM 2.wav", "KESTREL RUN Project PD"]]
+        },
+        {
+            "row": 26,
+            "files": [["Morning 5 - Friday April 21.wav", "bounces"], ["Morning 5 - Friday April 28.wav", "bounces"], ["Morning 5 - Friday June 16.wav", "bounces"], ["Morning 5 - Friday Aug 4.mp3", "bounces"]],
+            "apart": [["Morning 5 - Friday April 21.wav", "Morning 5 - Friday April 28.wav", "Morning 5 - Friday June 16.wav", "Morning 5 - Friday Aug 4.mp3"]]
+        },
+        {
+            "row": "guardrails",
+            "files": [
+                ["SKY.wav", "bounces"],
+                ["Red Sky 116bpm.wav", "bounces"],
+                ["Ide Kareal Sky.als", "projects"],
+                ["Sky Structure.wav", "bounces"],
+                ["AURORA LIVE SET - ASCENT 2023.wav", "bounces"],
+                ["AURORA LIVE SET - ASCENT 2024.wav", "bounces"],
+                ["Jam - Friday May 19.wav", "bounces"],
+                ["Morning 5 - Friday May 19.wav", "bounces"]
+            ],
+            "apart": [["SKY.wav", "Red Sky 116bpm.wav", "Ide Kareal Sky.als", "Sky Structure.wav"], ["AURORA LIVE SET - ASCENT 2023.wav", "AURORA LIVE SET - ASCENT 2024.wav"], ["Jam - Friday May 19.wav", "Morning 5 - Friday May 19.wav"]]
+        }
+    ]
+}

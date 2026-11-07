@@ -4,6 +4,6 @@
   "private": true,
   "main": "src/index.js",
   "dependencies": {
-    "@importer-lab/contract": "1.0.0"
+    "@importer-lab/contract": "1.1.0"
   }
 }

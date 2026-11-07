@@ -27,6 +27,9 @@ test('the results file has names, counts, marks and timings', async (t) => {
     const { view, json } = await results(t);
     const parsed = JSON.parse(json);
     assert.equal(parsed.format, 'importer-lab-results');
+    assert.equal(parsed.version, 2);
+    const sky = parsed.songs.find((song) => song.name === 'Sky');
+    assert.ok(sky.files.every((file) => /^[0-9a-f]{12}$/.test(file.folderId) && file.modifiedAt && file.today));
     assert.equal(parsed.songs.length, view.songs.length);
     assert.ok(parsed.songs.find((song) => song.name === 'Sky').files.some((file) => file.name === 'SKY.wav'));
     assert.equal(parsed.marks.length, 1);
@@ -37,8 +40,9 @@ test('the results file has no paths and no audio', async (t) => {
     const { parent, view, json } = await results(t);
     assert.ok(!json.includes(parent), 'no absolute path');
     for (const file of view.files) assert.ok(!json.includes(file.sourceRelativePath), `no folder path: ${file.sourceRelativePath}`);
+    for (const folder of ['Bounces', 'Stems', 'Projects', 'Downloads', 'old stuff', 'catalog-a/']) assert.ok(!json.includes(`"${folder}`), `no folder name: ${folder}`);
     assert.ok(!/"(path|sourceRelativePath|data|bytes|audio)"/.test(json));
-    assert.ok(json.length < 20000, 'names and counts only');
+    assert.ok(json.length < 60000, 'names, counts and file metadata only');
 });
 
 test('the results file is written inside the lab data folder', async (t) => {

@@ -3,6 +3,67 @@
 Newest first. Each entry: what was decided, why, and what would change it. Conflicts between the spec
 and the brief are in `docs/CONFLICTS.md`; this log records how the build resolved them.
 
+## 2026-11-07 — M2: the engine groups songs
+
+**D33. Merge rule and bands.** Default merge rule is `exact-identity-only`: a song is **sure** only when
+every non-stem file has the same app canonical identity (or it is one clean file). Files joined by the
+lab's name policy, folder or content clues form a proposal in band **unsure** ("Check these first");
+empty, weekday-only or very short titles are **unclear**. Under `multi-clue` (Lab option) a policy merge
+becomes sure at confidence ≥ 0.95 with two or more independent clue types. Scoring weights
+(`policy/scoring-v1.json`) are hand-set (`fitted: false`) until M3 fits them on labelled catalogs.
+
+**D34. One name policy, versioned (`policy/names-v1.json`, `lab-names-1`).** Built on the app's
+`preClean` and canonical identity (loaded through adapters, never copied). The name is read as segments
+split on " - ": category prefixes (the app's list plus idea/sample words), learned namespaces (the app's
+`discoverNamespaces`, kept only when a title remains), collaboration prefixes ("A X B"), then label
+segments (stage, render, edit, version, format and tech words, stem parts). The title loses trailing
+stage/render/edit/version words, dates, takes and tempos, repeated words, contributors and "Project PD".
+Every removal is recorded and shown as a plain reason. Applies the same way to bounces, stems and
+projects (row 3).
+
+**D35. Numbers and dates.** A bare number is a take (1–30) or tempo (60–200) and becomes a version label
+only when the plain title is present or the numbered files share a folder; without folder information
+(the names-only replay) nothing is split. A month alone is not a date. A title that is only a day
+("Friday April 21") keeps its date and its series (row 26). Years always stay ("Live Set 2023" vs "2024").
+Found by the 1,000-song stress set, where the first M2 draft found 628 songs instead of 1,000 (row 27).
+
+**D36. Weak and generic titles.** Generic titles (the app's `isGenericTitle`) keep their number and
+group only within one folder, never as sure (row 1). Weak titles (empty, weekday or number only, one or
+two letters) group only identical names in one folder; an empty title stays a single file.
+
+**D37. Contributors are learned only from explicit patterns** ("<name> adds", "for/feat/ft/w <name>") in
+two or more files, never because removing a word matches another title (a first draft learned 61 words,
+including "friday" and "structure").
+
+**D38. Kinds.** A song's kind is the majority of its files: song, template, course, sample pack, or a
+stem-only set. Course prefixes are per catalog (Lab options → Course prefixes); sample-pack families
+need five or more numbered parts. Other kinds are hidden from the song count behind a button.
+
+**D39. Clue readers run on local files only.** Cloud placeholders are never opened (so nothing
+downloads); their names still group. Readers: Ableton (gzip XML: tempo, length, tracks, sample names),
+Logic package contents, WAV/AIFF length, export batches, shared samples (a sample in more than
+max(3, 5%) of projects counts as library and is ignored), timing (bounce saved within 30 minutes of a
+project of the same length), duplicates (the app's `hashFileSha256`, same-size files of 1 KB or more).
+Results are cached per file in the store.
+
+**D40. Existing songs and auto-merge.** A snapshot of Library songs (JSON from the app, loaded in Lab
+options) links a proposal to a Library song only on an exact canonical match; an empty or malformed
+snapshot fails loudly. The auto-merge engine is loaded through an adapter that stubs its three
+desktop-only requires (`adapters/auto-merge.js`) for `isGenericTitle` and its pure helpers.
+
+**D41. Song detail uses styled rows, not the wizard's.** The import review wizard renders its file rows
+only inside the full session flow (`library-import-wizard.js`), so it cannot be driven from the lab
+without a session. Song detail shows the same information (type, version, stem part, latest, cloud) in
+the app's row styles. *Revisit when:* the wizard exports a row renderer (to propose as a patch).
+
+**D42. Export v2.** Adds per file: opaque folder id (salted hash, so folders can be compared without
+names), size, modified time, length, version label and stem part; per song: kind, band, versions and
+possible matches. No paths, no audio.
+
+**D43. Contract 1.1.0** (additive, optional fields): song kind, namespace, versions, possible matches,
+precheck; file version label, stem part, source container; request options `groupEdits` and
+`catalogRules`; `baselineStripPrefixes`. Engine version `0.2.0-m2`.
+
 ## 2026-11-07 — Navigation and scan history (after the first real run)
 
 **D29. Navigation.** One Back button in the header on every step (a stack of visited screens; the
@@ -17,13 +78,12 @@ results, after the app's destructive mirror confirmation (Keep + Delete); marks 
 
 **D31. Live song list.** The scan screen shows the 20 newest song names and a "See all N" button.
 
-**D32. M2 inputs from the first real run (Arn's catalog, 1,803 files → 1,068 songs today).** Test cases
-recorded for M2: variant suffixes (Cavalry Invisalign …), edits (Cma Intro Short/Long), category
-prefixes applied unevenly (Blooper Idea …), repeated words (Evenant Evenant …), contributor names
-(… Arn …), plural/suffix edits (Pirouette/Pirouettes, Push Jam Monday), must-stay-separate cases
-(Morning 5 <day>, Live Set Risen 2023 vs 2024), and non-song types (templates, tutorials/course
-material). "Project PD" is a backup-copy marker left by Producer Dashboard (the earlier version of The
-Library) when files were moved: treat it as noise, never as a rule or identity.
+**D32. M2 inputs from the first real run (one producer's catalog, 1,803 files → 1,068 songs today).**
+The cases are recorded as anonymised rows in `docs/FINDINGS.md` and `fixtures/cases/findings-cases.json`
+(variant suffixes, edits, uneven category prefixes, repeated words, contributor names, plural and suffix
+variants, must-stay-separate series and years, templates and course material). Real names stay in the
+git-ignored `private/` folder. "Project PD" is a backup-copy marker left by Producer Dashboard (the
+earlier version of The Library) when files were moved: noise, never a rule or identity.
 
 
 

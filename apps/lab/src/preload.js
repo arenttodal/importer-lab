@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('labAPI', {
     getInfo: () => ipcRenderer.invoke('lab:get-info'),
     getSettings: () => ipcRenderer.invoke('lab:get-settings'),
     setSetting: (key, value) => ipcRenderer.invoke('lab:set-setting', key, value),
+    loadExistingSongs: () => ipcRenderer.invoke('lab:load-existing-songs'),
+    clearExistingSongs: () => ipcRenderer.invoke('lab:clear-existing-songs'),
 
     listFolders: () => ipcRenderer.invoke('lab:list-folders'),
     setFolderChecked: (id, checked) => ipcRenderer.invoke('lab:set-folder-checked', id, checked),

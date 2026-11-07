@@ -1,7 +1,8 @@
 // @importer-lab/contract — types only, no build step.
-// Copied verbatim from docs/INTEGRATION_BRIEF.md §3.5 (the rewritten contract v1).
+// 1.0.0 was copied verbatim from docs/INTEGRATION_BRIEF.md §3.5 (the rewritten contract v1).
+// 1.1.0 adds optional fields only (marked "1.1.0"): every 1.0.0 consumer keeps working.
 // Runtime constants live in index.js. Check with: npm run typecheck
-// contract v1.0.0 — semver; any breaking change bumps the major version
+// contract v1.1.0 — semver; any breaking change bumps the major version
 
 // CHANGED from spec: plural, matching tracks.file_type convention, plus 'videos' (IMP-FN-033)
 export type FileType = "bounces" | "stems" | "projects" | "videos" | "unknown";
@@ -15,6 +16,8 @@ export interface ScanRequest {
     ai: { enabled: boolean; maxCostUsd: number; model: string };
     mergeRule: "exact-identity-only" | "multi-clue";
     identityPolicyVersion: string; // ADDED — required to A/B the normalizer reconciliation
+    groupEdits?: boolean; // 1.1.0 — short/long/track edits are versions of one song (default true)
+    catalogRules?: { courseNamespaces?: string[] }; // 1.1.0 — prefixes that mark course material
   };
 }
 
@@ -32,14 +35,31 @@ export interface ExistingSong {
 }
 
 export interface ProposedCatalog {
-  contractVersion: "1.0.0";
+  contractVersion: "1.0.0" | "1.1.0";
   engineVersion: string;
   policyVersion: string;
   songs: ProposedSong[];
   unassigned: ProposedFile[];
   duplicates: DuplicateSet[];
-  baseline: BaselineResult;
+  baseline: BaselineResult; // today's importer, preserveSourceIdentity: true (the engine's target)
+  baselineStripPrefixes?: BaselineResult; // 1.1.0 — today's importer, preserveSourceIdentity: false
   stats: ScanStats;
+}
+
+// 1.1.0 — what a proposed item is; only "song" counts as a song.
+export type SongKind = "song" | "template" | "course" | "sample-pack" | "stem-set";
+
+// 1.1.0 — files of one song that share a version label ("Final Master 1.1", "Pitched").
+export interface VersionGroup {
+  label: string;
+  fileIds: string[];
+}
+
+// 1.1.0 — another song this one may be; proposed for review, never merged automatically.
+export interface PossibleMatch {
+  proposalId: string;
+  songName: string;
+  reason: string;
 }
 
 export interface ProposedSong {
@@ -58,6 +78,11 @@ export interface ProposedSong {
   // XX bpm is INTEGER in the DB; a float tempo from .als must round
   decidedBy: "rules" | "ai";
   isAnchor: boolean; // ADDED — isAnchorGroup(): one or more bounce/project (IMP-FN-007-R14)
+  kind?: SongKind; // 1.1.0
+  namespace?: string | null; // 1.1.0 — client, collaborator or series prefix
+  versions?: VersionGroup[]; // 1.1.0
+  possibleMatches?: PossibleMatch[]; // 1.1.0
+  precheck?: boolean; // 1.1.0 — an unsure song pre-checked for review (confidence >= 0.85)
 }
 
 export interface ProposedFile {
@@ -79,6 +104,9 @@ export interface ProposedFile {
   cloudPlaceholder?: boolean; // XX see Adapter 9
   needsReview: boolean; // ADDED -> publicFile.needsReview; starts unchecked (IMP-FN-032-R3)
   allowedTypes: FileType[]; // ADDED -> publicFile.allowedTypes
+  sourceContainerId?: string | null; // 1.1.0 -> publicFile.sourceContainerId
+  versionLabel?: string | null; // 1.1.0 — the words set aside from the title ("Final Master 1.1")
+  stemPart?: string | null; // 1.1.0 — for a stem, the part ("Woodwinds")
 }
 
 export interface Reason {
@@ -131,7 +159,8 @@ export interface ScanStats {
   placeholdersSkipped: number; // ADDED
 }
 
-export declare const CONTRACT_VERSION: "1.0.0";
+export declare const CONTRACT_VERSION: "1.1.0";
+export declare const SONG_KINDS: readonly SongKind[];
 export declare const FILE_TYPES: readonly FileType[];
 export declare const BANDS: readonly ProposedSong["band"][];
 export declare const CLUES: readonly Reason["clue"][];

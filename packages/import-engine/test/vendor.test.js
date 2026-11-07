@@ -11,10 +11,11 @@ test('the submodule is checked out at the pinned commit', () => {
     assert.equal(head, PINNED_COMMIT);
 });
 
-test('loading the engine never loads Electron, inbox-router or auto-merge-engine', () => {
+test('loading the engine never loads Electron, inbox-router, or what the auto-merge adapter stubs', () => {
     require('../src');
     const loaded = Object.keys(require.cache).map((file) => path.basename(file));
-    for (const forbidden of ['inbox-router.js', 'auto-merge-engine.js', 'library-import-session.cjs', 'client-diagnostics-native.cjs']) {
+    assert.ok(loaded.includes('auto-merge-engine.js'), 'its pure parts come through Adapter 11');
+    for (const forbidden of ['inbox-router.js', 'library-import-session.cjs', 'client-diagnostics-native.cjs', 'local-track-group-join.js']) {
         assert.ok(!loaded.includes(forbidden), `${forbidden} must not be loaded`);
     }
     assert.ok(!Object.keys(require.cache).some((file) => /node_modules[\\/]electron[\\/]/.test(file)));
