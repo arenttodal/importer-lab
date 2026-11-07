@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en" class="dark">
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'"
+        />
+        <title>Importer Lab</title>
+
+        <!-- The main app's own stylesheets, served unchanged from vendor/the-library/public -->
+        <link rel="stylesheet" href="/lab/vendor/tailwind-build.css" />
+        <link rel="stylesheet" href="/tracks-page.css" />
+        <link rel="stylesheet" href="/tracks-view-modes.css" />
+        <link rel="stylesheet" href="/vanilla-table-theme.css" />
+        <link id="standard-modal-stylesheet" rel="stylesheet" href="/components/standard-modal.css" />
+        <link rel="stylesheet" href="/toast-notifications.css" />
+        <link rel="stylesheet" href="/utilities.css" />
+        <link rel="stylesheet" href="/background-theme.css" />
+        <!-- Layout only; every value comes from the app's CSS variables -->
+        <link rel="stylesheet" href="/lab/lab.css" />
+    </head>
+    <body class="tracks-page lab-page text-dark-text font-sans">
+        <header class="lab-header">
+            <div class="lab-title">
+                <h1>Importer Lab</h1>
+                <span class="std-chip"><span class="std-status-dot std-status-dot--sm lab-dot-safe"></span>Read-only</span>
+            </div>
+            <nav class="std-segmented" role="tablist" aria-label="Lab screens">
+                <button class="std-segment is-active" role="tab" data-screen="folders">1. Choose folders</button>
+                <button class="std-segment" role="tab" data-screen="scan">2. Scan</button>
+                <button class="std-segment" role="tab" data-screen="catalog">3. Catalog</button>
+            </nav>
+            <div id="runtimeInfo" class="lab-runtime"></div>
+        </header>
+
+        <main class="lab-main">
+            <!-- Screen 1: choose folders -->
+            <section id="screen-folders" class="lab-screen" data-screen-panel="folders">
+                <div class="lab-column">
+                    <div class="std-modal-section-label">Folders and drives to scan</div>
+                    <div id="folderList" class="std-list"></div>
+                    <div id="folderEmpty" class="std-empty">
+                        <div class="std-empty-title">No folders yet</div>
+                        <div class="std-empty-text">The lab only reads. It never moves, renames, deletes or downloads anything.</div>
+                    </div>
+                    <div class="lab-actions">
+                        <button id="addFolders" class="std-modal-btn std-modal-btn--secondary" type="button">Add folders…</button>
+                    </div>
+
+                    <div class="std-modal-section-label">Options</div>
+                    <label class="std-toggle lab-disabled" title="The AI pass arrives in milestone M4">
+                        <input id="aiEnabled" class="std-toggle-input" type="checkbox" disabled />
+                        <span class="std-toggle-rail"></span>
+                        <span class="std-toggle-label">AI pass on unclear leftovers (M4 — off)</span>
+                    </label>
+                    <label class="std-form-row">
+                        <span class="std-form-label">AI cost cap per run (USD)</span>
+                        <input id="maxCostUsd" class="std-form-input" type="number" min="0" step="0.05" value="0.50" disabled />
+                        <span class="std-form-help">Used by the AI pass in M4. Nothing is sent anywhere in this version.</span>
+                    </label>
+                    <div class="std-form-row">
+                        <span class="std-form-label">Merge rule</span>
+                        <div class="std-radio-group">
+                            <label class="std-radio">
+                                <input class="std-radio-input" type="radio" name="mergeRule" value="exact-identity-only" checked />
+                                <span class="std-radio-dot"></span>
+                                <span class="std-radio-label">Exact identity only</span>
+                            </label>
+                            <label class="std-radio">
+                                <input class="std-radio-input" type="radio" name="mergeRule" value="multi-clue" />
+                                <span class="std-radio-dot"></span>
+                                <span class="std-radio-label">Multi-clue (takes effect with scoring in M2)</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="std-form-row">
+                        <span class="std-form-label">Cloud placeholders</span>
+                        <div class="std-radio-group">
+                            <label class="std-radio">
+                                <input class="std-radio-input" type="radio" name="placeholders" value="list" checked />
+                                <span class="std-radio-dot"></span>
+                                <span class="std-radio-label">List them (never opened, never downloaded)</span>
+                            </label>
+                            <label class="std-radio">
+                                <input class="std-radio-input" type="radio" name="placeholders" value="skip" />
+                                <span class="std-radio-dot"></span>
+                                <span class="std-radio-label">Leave them out</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="lab-actions">
+                        <button id="startScan" class="std-modal-btn std-modal-btn--primary" type="button" disabled>Scan</button>
+                        <span id="startError" class="std-form-error" hidden></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Screen 2: scan -->
+            <section id="screen-scan" class="lab-screen" data-screen-panel="scan" hidden>
+                <div class="lab-column">
+                    <div class="std-modal-section-label">Scan</div>
+                    <p id="scanPhase" class="lab-phase">Not started</p>
+                    <div id="scanProgress" class="std-progress std-progress--indeterminate" hidden><div class="std-progress-fill"></div></div>
+                    <div class="std-stat-grid">
+                        <div class="std-stat-tile"><div id="statFiles" class="std-stat-value">0</div><div class="std-stat-label">Files found</div></div>
+                        <div class="std-stat-tile"><div id="statFolders" class="std-stat-value">0</div><div class="std-stat-label">Folders read</div></div>
+                        <div class="std-stat-tile"><div id="statProjects" class="std-stat-value">—</div><div class="std-stat-label">Projects</div></div>
+                        <div class="std-stat-tile"><div id="statSongs" class="std-stat-value">—</div><div class="std-stat-label">Songs (today's importer)</div></div>
+                        <div class="std-stat-tile"><div id="statCost" class="std-stat-value">$0.00</div><div class="std-stat-label">AI cost so far</div></div>
+                    </div>
+                    <div class="lab-actions">
+                        <button id="cancelScan" class="std-modal-btn std-modal-btn--secondary" type="button" disabled>Cancel scan</button>
+                        <button id="viewCatalog" class="std-modal-btn std-modal-btn--primary" type="button" hidden>View catalog</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Screen 3: catalog -->
+            <section id="screen-catalog" class="lab-screen lab-screen--wide" data-screen-panel="catalog" hidden>
+                <div id="catalogEmpty" class="std-empty">
+                    <div class="std-empty-title">No catalog yet</div>
+                    <div class="std-empty-text">Choose folders and run a scan.</div>
+                </div>
+                <div id="catalogView" hidden>
+                    <section class="std-tracks-context-hero" aria-labelledby="catalogTitle">
+                        <div class="std-tracks-context-identity">
+                            <p id="catalogKind">Today's importer · baseline</p>
+                            <h1 id="catalogTitle">Catalog</h1>
+                            <p id="catalogCount"></p>
+                        </div>
+                    </section>
+                    <div class="std-tracks-context-toolbar" role="toolbar" aria-label="Catalog filters">
+                        <div class="std-tracks-context-filters">
+                            <div class="std-segmented" role="tablist" aria-label="Today's importer mode">
+                                <button class="std-segment is-active" data-mode="preserve" title="preserveSourceIdentity: true — the review wizard's mode, and the engine's target">Keep collaborator prefixes</button>
+                                <button class="std-segment" data-mode="strip" title="preserveSourceIdentity: false — automatic import strips learned prefixes">Strip learned prefixes</button>
+                            </div>
+                            <div class="std-segmented lab-disabled" role="tablist" aria-label="Band filter" title="Bands arrive with scoring in M2">
+                                <button class="std-segment is-active" disabled>All bands</button>
+                                <button class="std-segment" disabled>Sure</button>
+                                <button class="std-segment" disabled>Unsure</button>
+                                <button class="std-segment" disabled>Unclear</button>
+                            </div>
+                        </div>
+                        <div id="catalogSummary" class="lab-summary"></div>
+                    </div>
+                    <table id="tracksGrid" class="display lab-grid">
+                        <thead>
+                            <tr>
+                                <th class="song-name-cell" data-column="song_name" data-sort="name">Song name</th>
+                                <th data-column="band">Band</th>
+                                <th data-column="confidence">Confidence</th>
+                                <th data-column="files" data-sort="files">Files</th>
+                                <th data-column="bpm">BPM</th>
+                                <th data-column="key">Key</th>
+                                <th data-column="length">Length</th>
+                            </tr>
+                        </thead>
+                        <tbody id="catalogRows"></tbody>
+                    </table>
+                    <div class="std-modal-section-label lab-spaced">Not grouped by today's importer</div>
+                    <div id="unassignedList" class="std-list"></div>
+                </div>
+            </section>
+        </main>
+
+        <script src="/lab/app.js"></script>
+    </body>
+</html>

@@ -1,0 +1,114 @@
+/* Importer Lab layout. Layout only: every color, radius and type size comes from the app's
+   CSS variables and .std-* classes (vendor/the-library/public). No new colors, fonts or sizes. */
+
+body.lab-page {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.lab-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(20px);
+}
+
+.lab-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.lab-title h1 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.lab-dot-safe {
+    background: var(--success);
+}
+
+.lab-runtime {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.lab-main {
+    flex: 1;
+    overflow: auto;
+}
+
+.lab-screen {
+    padding: 24px;
+}
+
+.lab-column {
+    max-width: 640px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.lab-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.lab-phase {
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+.lab-disabled {
+    opacity: 0.5;
+}
+
+.lab-summary {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.lab-grid td,
+.lab-grid th {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.lab-grid th {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.lab-grid th[data-sort] {
+    cursor: pointer;
+}
+
+.lab-grid tbody tr:hover {
+    background: var(--bg-hover);
+}
+
+.lab-row-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.lab-muted {
+    color: var(--text-muted);
+}
+
+.lab-spaced {
+    margin-top: 24px;
+}

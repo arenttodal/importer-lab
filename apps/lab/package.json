@@ -1,0 +1,11 @@
+{
+  "name": "@importer-lab/lab",
+  "productName": "Importer Lab",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/main.js",
+  "dependencies": {
+    "@importer-lab/contract": "1.0.0",
+    "@importer-lab/import-engine": "0.1.0"
+  }
+}

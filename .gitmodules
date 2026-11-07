@@ -1,0 +1,3 @@
+[submodule "vendor/the-library"]
+	path = vendor/the-library
+	url = https://github.com/rosscrispin/the-library.git
