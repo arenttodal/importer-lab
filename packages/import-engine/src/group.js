@@ -15,6 +15,7 @@ const { analyseName, createNameContext, tokenize, segmentsOf, policy: namePolicy
 const { fileIdentity } = require('./adapters/identity');
 const { isGenericTitle } = require('./adapters/auto-merge');
 const { requireApp } = require('./adapters/vendor');
+const { detectCoursePrefixes } = require('./course');
 
 const { discoverNamespaces } = requireApp('electron/hybrid-grouper.js');
 const { preClean, canonicalSongIdentity } = requireApp('electron/import-canonical-identity.js');
@@ -107,6 +108,30 @@ function isStemEntry(entry) {
     return AUDIO_EXTS.has(entry.file.ext) && entry.analysis.isStemName && entry.analysis.title !== '';
 }
 
+// One-shot sounds ("STORM - CLAPS", "Kick 2", "Hip Hop Kit"): a short name with a one-shot word.
+const ONE_SHOT_WORDS = new Set(KINDS.oneShotWords);
+
+function isOneShotName(entry) {
+    if (!AUDIO_EXTS.has(entry.file.ext)) return false;
+    const words = `${entry.analysis.title} ${entry.analysis.stemPart || ''}`.split(' ').filter((word) => word && !/^\d+$/.test(word));
+    return words.length > 0 && words.length <= KINDS.oneShotMaxWords && words.some((word) => ONE_SHOT_WORDS.has(word));
+}
+
+// A pack-like folder holds several one-shot sounds and no project: its one-shots are a sample
+// pack, never a song (and never the mix of an export batch).
+function packFolders(entries) {
+    const byFolder = new Map();
+    for (const entry of entries) {
+        const folder = entry.file.sourceContainerId;
+        if (!folder) continue;
+        if (!byFolder.has(folder)) byFolder.set(folder, { oneShots: 0, projects: 0 });
+        const stats = byFolder.get(folder);
+        if (entry.file.type === 'projects') stats.projects += 1;
+        else if (isOneShotName(entry)) stats.oneShots += 1;
+    }
+    return new Set([...byFolder].filter(([, stats]) => stats.projects === 0 && stats.oneShots >= KINDS.packFolderMinFiles).map(([folder]) => folder));
+}
+
 function bucketKey(entry) {
     const { analysis, file } = entry;
     // A weak title ("Untitled 14", "Night 376") only joins the same name in the same folder.
@@ -118,14 +143,29 @@ function bucketKey(entry) {
 }
 
 // A bare number ("Sky 122", "Sky 2") is a take or tempo label when the plain title ("Sky") is also
-// there, or when the numbered files share a folder ("Sketch 1", "Sketch 2"). Numbered files in
-// different folders with no plain title ("Sky Night 21", "Sky Night 41") stay apart: precision
-// first, and similar names alone never merge. Without folder information nothing is split.
+// there, when the numbered files share a folder ("Sketch 1", "Sketch 2"), or when one file's numbers
+// contain the other's ("… 80 Project" and "… 80 1"). Numbered files in different folders with no
+// plain title and no shared number ("Sky Night 21", "Sky Night 41") stay apart: precision first, and
+// similar names alone never merge. Without folder information nothing is split.
+function numberSet(text) {
+    return new Set(String(text || '').split(' ').filter(Boolean));
+}
+
+function numbersContain(a, b) {
+    const [small, large] = numberSet(a).size <= numberSet(b).size ? [numberSet(a), numberSet(b)] : [numberSet(b), numberSet(a)];
+    return small.size > 0 && [...small].every((number) => large.has(number));
+}
+
+function commonNumbers(numbers) {
+    const sets = [...numbers].map(numberSet);
+    return [...sets[0]].filter((number) => sets.every((set) => set.has(number))).join(' ');
+}
+
 function splitByNumber(entries) {
     if (entries.some((entry) => !entry.analysis.bareNumber || !entry.file.sourceContainerId)) return [{ numberKey: '', entries }];
     const parts = [];
     for (const entry of entries) {
-        const touching = parts.filter((part) => part.numbers.has(entry.analysis.bareNumber) || part.folders.has(entry.file.sourceContainerId));
+        const touching = parts.filter((part) => [...part.numbers].some((number) => numbersContain(number, entry.analysis.bareNumber)) || part.folders.has(entry.file.sourceContainerId));
         const merged = { numbers: new Set([entry.analysis.bareNumber]), folders: new Set([entry.file.sourceContainerId]), entries: [entry] };
         for (const part of touching) {
             part.numbers.forEach((number) => merged.numbers.add(number));
@@ -135,7 +175,7 @@ function splitByNumber(entries) {
         }
         parts.push(merged);
     }
-    return parts.map((part) => ({ numberKey: part.numbers.size === 1 ? [...part.numbers][0] : '', entries: part.entries }));
+    return parts.map((part) => ({ numberKey: commonNumbers(part.numbers), entries: part.entries }));
 }
 
 // Different clients or collaborators under one title stay apart; files without a prefix join the
@@ -156,7 +196,7 @@ function splitByNamespace(entries) {
 }
 
 function groupCatalog(files, options = {}) {
-    const { mergeRule = 'exact-identity-only', groupEdits = true, courseNamespaces = [], links = [], existingSongs = [] } = options;
+    const { mergeRule = 'exact-identity-only', groupEdits = true, courseNamespaces = [], declinedCoursePrefixes = [], links = [], existingSongs = [] } = options;
     const nameOptions = { groupEdits };
     const namespaces = learnNamespaces(files, courseNamespaces);
 
@@ -169,6 +209,8 @@ function groupCatalog(files, options = {}) {
         return { file: member, analysis, course: Boolean(analysis.namespace && courseSet.has(analysis.namespace)) };
     });
     applySiblingStems(entries);
+    const packs = packFolders(entries);
+    for (const entry of entries) entry.packOneShot = packs.has(entry.file.sourceContainerId) && isOneShotName(entry);
 
     // Anchors (and stems that carry no part name) form the songs.
     const buckets = new Map();
@@ -201,12 +243,12 @@ function groupCatalog(files, options = {}) {
             weakMatch.stems.push(entry);
             continue;
         }
-        const candidates = (byTitle.get(entry.analysis.title) || []).filter((group) => group.numberKey === '' || !entry.analysis.bareNumber || group.numberKey === entry.analysis.bareNumber);
+        const candidates = (byTitle.get(entry.analysis.title) || []).filter((group) => group.numberKey === '' || !entry.analysis.bareNumber || numbersContain(group.numberKey, entry.analysis.bareNumber));
         const sameNamespace = (member) => member.analysis.namespace === entry.analysis.namespace;
         const sameFolder = (member) => member.file.sourceContainerId && member.file.sourceContainerId === entry.file.sourceContainerId;
         const match =
             (candidates.length > 1 && candidates.find((group) => group.entries.some((member) => sameFolder(member) && sameNamespace(member)))) ||
-            candidates.find((group) => group.numberKey === entry.analysis.bareNumber && group.entries.some(sameNamespace)) ||
+            candidates.find((group) => (group.numberKey === entry.analysis.bareNumber || numbersContain(group.numberKey, entry.analysis.bareNumber)) && group.entries.some(sameNamespace)) ||
             (candidates.length === 1 ? candidates[0] : null);
         if (match) match.stems.push(entry);
         else {
@@ -218,11 +260,14 @@ function groupCatalog(files, options = {}) {
     groups.push(...stemOnly.values());
 
     attachExportBatches(groups, links);
+    const looseStems = settleLoneStems(groups);
     const songs = groups.map((group) => buildSong(group, { mergeRule, links }));
+    makeNamesUnique(songs);
     proposeSimilarNames(songs);
     applyClueLinks(songs, links, mergeRule);
     matchExistingSongs(songs, existingSongs);
-    return { songs, context: { namespaces, contributors, policyVersion: namePolicy.version, scoringVersion: scoring.version } };
+    const courseSuggestions = detectCoursePrefixes(files, { contributors, known: courseNamespaces, declined: declinedCoursePrefixes });
+    return { songs, looseStems, context: { namespaces, contributors, courseSuggestions, policyVersion: namePolicy.version, scoringVersion: scoring.version } };
 }
 
 // Export batches found by the clue readers (same folder, format and length, saved together): the
@@ -239,7 +284,7 @@ function attachExportBatches(groups, links) {
     }
     for (const link of links.filter((candidate) => candidate.clue === 'exportBatch')) {
         const members = link.fileIds.map((id) => entryOfFile.get(id)).filter(Boolean);
-        const mixes = members.filter((entry) => entry.file.type === 'bounces' && !isStemEntry(entry) && entry.analysis.title).sort((a, b) => a.analysis.title.length - b.analysis.title.length);
+        const mixes = members.filter((entry) => entry.file.type === 'bounces' && !isStemEntry(entry) && !entry.packOneShot && entry.analysis.title).sort((a, b) => a.analysis.title.length - b.analysis.title.length);
         if (!mixes.length) continue;
         const mix = mixes[0];
         const mixGroup = groupOfFile.get(mix.file.fileId);
@@ -254,6 +299,152 @@ function attachExportBatches(groups, links) {
         }
     }
     for (let index = groups.length - 1; index >= 0; index -= 1) if (!groups[index].entries.length && !groups[index].stems.length) groups.splice(index, 1);
+}
+
+// A stem set of one stem is a lone stem. After the exact name and the export batch, it may join a
+// song in the same folder whose title begins or ends its own ("Glasshouse" for "Glasshouse Choir
+// Take"); otherwise it is a loose stem for review, never an entry of its own.
+function settleLoneStems(groups) {
+    const loose = [];
+    const songsInFolder = new Map();
+    for (const group of groups) {
+        if (group.stemOnly || !group.key.startsWith('title:')) continue;
+        for (const entry of group.entries) {
+            const folder = entry.file.sourceContainerId;
+            if (!folder) continue;
+            if (!songsInFolder.has(folder)) songsInFolder.set(folder, new Set());
+            songsInFolder.get(folder).add(group);
+        }
+    }
+    for (let index = groups.length - 1; index >= 0; index -= 1) {
+        const group = groups[index];
+        if (!group.stemOnly || group.entries.length || group.stems.length !== 1) continue;
+        const stem = group.stems[0];
+        // One-shots and stems named as templates, course or sample-pack material keep that kind.
+        if (stem.packOneShot || fileKind(stem) !== 'song') continue;
+        const title = stem.analysis.title;
+        const near = [...(songsInFolder.get(stem.file.sourceContainerId) || [])].filter((candidate) => {
+            const other = candidate.entries[0].analysis.title;
+            const sameNamespace = candidate.entries.some((entry) => entry.analysis.namespace === stem.analysis.namespace);
+            return sameNamespace && other && (title.startsWith(`${other} `) || title.endsWith(` ${other}`) || other.startsWith(`${title} `));
+        });
+        groups.splice(index, 1);
+        if (near.length === 1) near[0].stems.push({ ...stem, viaFolder: true });
+        else loose.push({ ...stem.file, stemPart: stem.analysis.stemPart || null, reason: near.length > 1 ? 'Several songs in its folder have a similar name; choose one in review.' : 'A stem with no song of the same name in its folder or export batch.' });
+    }
+    return loose;
+}
+
+// ── Display names (IMP-FN-007-R14) ──
+// The canonical identity is for comparison only. A song is shown under the producer's own, most
+// complete title with only the noise taken out: formats, specs, the backup marker, version, stage,
+// render and edit words, takes and tempos, repeats and stem parts. Series, dates, categories,
+// clients and contributors stay ("Morning 5 - Monday Nov 27", not "Nov 27").
+const NOISE_RULES = new Set(['format', 'tech', 'marker', 'version', 'stage', 'render', 'edit', 'repeat', 'descriptor', 'stem']);
+// When the full clean leaves one word, a lighter clean keeps the producer's fuller title.
+const LIGHT_NOISE_RULES = new Set(['format', 'tech', 'marker', 'version', 'stage']);
+
+function cleanDisplayName(entry, keepNumbers = [], rules = NOISE_RULES) {
+    const noise = new Map();
+    for (const step of entry.analysis.removed) {
+        if (!NOISE_RULES.has(step.rule)) continue;
+        // Takes and tempos are noise even inside a segment kept by the lighter clean.
+        const words = step.words.split(' ').filter(Boolean).filter((word) => rules.has(step.rule) || /^\d+$/.test(word));
+        for (const word of words) noise.set(word, (noise.get(word) || 0) + 1);
+    }
+    // Numbers that tell this song from its namesakes ("Sky Night 21") stay in the name.
+    for (const number of keepNumbers) if (noise.get(number)) noise.set(number, noise.get(number) - 1);
+    const segments = segmentsOf(preClean(entry.file.name, { video: entry.file.type === 'videos' })).map((tokens) => [...tokens]);
+    for (let s = segments.length - 1; s >= 0; s -= 1) {
+        for (let t = segments[s].length - 1; t >= 0; t -= 1) {
+            const token = segments[s][t];
+            if (!noise.get(token)) continue;
+            noise.set(token, noise.get(token) - 1);
+            segments[s].splice(t, 1);
+        }
+    }
+    return segments
+        .filter((tokens) => tokens.length)
+        .map((tokens) => titleCase(tokens.join(' ')))
+        .join(' - ');
+}
+
+function wordCount(text) {
+    return text.split(/[\s-]+/).filter(Boolean).length;
+}
+
+function bestName(source, keepNumbers, rules) {
+    const counts = new Map();
+    for (const entry of source) {
+        const name = cleanDisplayName(entry, keepNumbers, rules);
+        if (name) counts.set(name, (counts.get(name) || 0) + 1);
+    }
+    const ranked = [...counts.entries()].sort((a, b) => wordCount(b[0]) - wordCount(a[0]) || b[1] - a[1] || a[0].localeCompare(b[0]));
+    return ranked[0]?.[0] || '';
+}
+
+// A set of stems is shown under the name its files share ("Storm - Vln" for "Storm - Vln - Violin 1", …).
+function sharedName(source) {
+    const lists = source.map((entry) => segmentsOf(preClean(entry.file.name)).map((tokens) => tokens.join(' ')));
+    const shared = [];
+    for (let index = 0; lists.every((list) => index < list.length - 1 && list[index] === lists[0][index]); index += 1) shared.push(lists[0][index]);
+    return shared.map(titleCase).join(' - ');
+}
+
+function displayNameFor(group, fallback) {
+    const source = group.entries.length ? group.entries : group.stems;
+    const keepNumbers = [...numberSet(group.numberKey)];
+    // One-shots keep their sound's name ("Big Snare").
+    if (source.every((entry) => entry.packOneShot)) return bestName(source, keepNumbers, new Set([...NOISE_RULES].filter((rule) => rule !== 'stem'))) || fallback;
+    if (group.stemOnly && source.length > 1 && new Set(source.map((entry) => preClean(entry.file.name))).size > 1) {
+        const shared = sharedName(source);
+        if (wordCount(shared) > 1) return shared;
+    }
+    const full = bestName(source, keepNumbers, NOISE_RULES);
+    if (wordCount(full) > 1 && !isGenericTitle(full.toLowerCase())) return full;
+    const light = bestName(source, keepNumbers, LIGHT_NOISE_RULES);
+    return (wordCount(light) > wordCount(full) ? light : full) || fallback;
+}
+
+function folderName(song) {
+    const parents = song.files.map((member) => String(member.sourceRelativePath || '').split('/').slice(-2, -1)[0]).filter(Boolean);
+    const counts = new Map();
+    for (const parent of parents) counts.set(parent, (counts.get(parent) || 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+}
+
+function monthOf(song) {
+    const newest = song.files.map((member) => member.modifiedAt).filter(Boolean).sort().pop();
+    if (!newest) return null;
+    const date = new Date(newest);
+    return Number.isNaN(date.getTime()) ? null : date.toLocaleString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
+
+// Two songs never share a display name: the folder, then the month, then a number tells them apart.
+function makeNamesUnique(songs) {
+    const byName = new Map();
+    for (const song of songs) {
+        const key = song.displayName.toLowerCase();
+        if (!byName.has(key)) byName.set(key, []);
+        byName.get(key).push(song);
+    }
+    const taken = new Set(songs.map((song) => song.displayName.toLowerCase()));
+    for (const same of byName.values()) {
+        if (same.length < 2) continue;
+        for (const song of same) {
+            const options = [folderName(song), monthOf(song)].filter(Boolean).map((extra) => `${song.displayName} (${extra})`);
+            const free = options.find((option) => !taken.has(option.toLowerCase()) && same.filter((other) => other !== song).every((other) => ![folderName(other), monthOf(other)].filter(Boolean).map((extra) => `${other.displayName} (${extra})`.toLowerCase()).includes(option.toLowerCase())));
+            let name = free;
+            for (let index = 2; !name; index += 1) if (!taken.has(`${song.displayName} (${index})`.toLowerCase())) name = `${song.displayName} (${index})`;
+            taken.add(name.toLowerCase());
+            song.uniqueName = name;
+        }
+    }
+    for (const song of songs) {
+        if (song.uniqueName) song.displayName = song.uniqueName;
+        delete song.uniqueName;
+        song.songName = song.displayName;
+    }
 }
 
 // ── Songs ──
@@ -271,6 +462,7 @@ function fileKind(entry) {
 
 function kindOf(group) {
     const all = [...group.entries, ...group.stems];
+    if (all.every((entry) => entry.packOneShot)) return 'sample-pack';
     const counts = {};
     for (const entry of all) counts[fileKind(entry)] = (counts[fileKind(entry)] || 0) + 1;
     const [topKind, topCount] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
@@ -305,9 +497,7 @@ function buildSong(group, { mergeRule }) {
     const first = anchors[0] || group.stems[0];
     const title = [first.analysis.title, group.numberKey].filter(Boolean).join(' ');
     const namespace = anchors.map((entry) => entry.analysis.namespace).find(Boolean) || null;
-    // A weak title ("340") keeps its category so the name still says what it is ("Song Idea 340").
-    const shownTitle = first.analysis.weak && first.analysis.category && title ? `${first.analysis.category} ${title}` : title;
-    const songName = titleCase(shownTitle || first.file.name.replace(/\.[^.]+$/, ''));
+    const songName = displayNameFor(group, titleCase(title || first.file.name.replace(/\.[^.]+$/, '')));
     const weights = scoring.weights;
     const reasons = [];
     const clueTypes = new Set();
@@ -359,8 +549,10 @@ function buildSong(group, { mergeRule }) {
     else if (mergeRule === 'multi-clue' && confidence >= bands.sure && clueTypes.size >= bands.minClueTypes) band = 'sure';
     else band = confidence >= bands.unsure ? 'unsure' : 'unclear';
 
-    const files = all.map((entry) => ({ ...entry.file, versionLabel: titleCase(entry.analysis.label || '') || null, stemPart: entry.analysis.stemPart || null }));
-    const versions = groupVersions(anchors);
+    const ownNumbers = numberSet(group.numberKey);
+    const labelOf = (entry) => titleCase((entry.analysis.label || '').split(' ').filter((word) => !ownNumbers.has(word)).join(' '));
+    const files = all.map((entry) => ({ ...entry.file, versionLabel: labelOf(entry) || null, stemPart: entry.analysis.stemPart || null }));
+    const versions = groupVersions(anchors, labelOf);
     const bounces = anchors.filter((entry) => entry.file.type === 'bounces').sort((a, b) => String(b.file.modifiedAt).localeCompare(String(a.file.modifiedAt)));
     const latestId = bounces[0]?.file.fileId || null;
     for (const member of files) member.latest = member.fileId === latestId;
@@ -384,14 +576,15 @@ function buildSong(group, { mergeRule }) {
         decidedBy: 'rules',
         isAnchor: anchors.some((entry) => entry.file.type === 'bounces' || entry.file.type === 'projects'),
         _title: title,
-        _namespace: namespace
+        _namespace: namespace,
+        _dateKeyed: Boolean(first.analysis.dateKeyed)
     };
 }
 
-function groupVersions(anchors) {
+function groupVersions(anchors, labelOf) {
     const versions = new Map();
     for (const entry of anchors) {
-        const label = titleCase(entry.analysis.label || '') || 'Main';
+        const label = labelOf(entry) || 'Main';
         if (!versions.has(label)) versions.set(label, []);
         versions.get(label).push(entry.file.fileId);
     }
@@ -411,32 +604,51 @@ function stemSets(stems, anchors, latestId) {
     });
 }
 
-// Similar names are only ever proposed for review (IMP-FN-007-R14; FINDINGS row 18).
+// Similar names are only ever proposed for review (IMP-FN-007-R14; FINDINGS row 18). Titles that
+// name a day ("Tuesday Oct 10") are never proposed against each other: different dates in a series
+// are different sessions by design.
 function proposeSimilarNames(songs) {
-    const candidates = songs.filter((song) => song.kind === 'song' && song._title && song._title.length >= scoring.similarNames.minLength);
+    const candidates = songs.filter((song) => song.kind === 'song' && song._title && song._title.length >= scoring.similarNames.minLength && !song._dateKeyed);
     for (let i = 0; i < candidates.length; i += 1) {
         for (let j = i + 1; j < candidates.length; j += 1) {
             const a = candidates[i];
             const b = candidates[j];
             if ((a._namespace || '') !== (b._namespace || '')) continue;
-            const reason = similarReason(a._title, b._title);
-            if (!reason) continue;
-            a.possibleMatches.push({ proposalId: b.proposalId, songName: b.songName, reason });
-            b.possibleMatches.push({ proposalId: a.proposalId, songName: a.songName, reason });
+            const similar = similarReason(a._title, b._title);
+            if (!similar) continue;
+            addMatch(a, b, similar.reason, similar.weight);
         }
     }
 }
 
 function similarReason(a, b) {
     if (a === b) return null;
-    if (a + 's' === b || b + 's' === a) return 'Names differ only by a plural "s".';
+    // Titles that differ only in their numbers ("Lantern 164", "Lantern 156") are different songs.
+    const withoutNumbers = (title) => title.replace(/\d+/g, '').replace(/\s+/g, ' ').trim();
+    if (/\d/.test(a + b) && withoutNumbers(a) === withoutNumbers(b)) return null;
+    if (a + 's' === b || b + 's' === a) return { reason: 'Names differ only by a plural "s".', weight: 0.9 };
     const [shorter, longer] = a.length < b.length ? [a, b] : [b, a];
-    if (longer.startsWith(`${shorter} `) && longer.split(' ').length === shorter.split(' ').length + 1) return `“${longer}” is “${shorter}” plus one word.`;
-    if (Math.abs(a.length - b.length) <= 2 && jaroWinkler(a, b) >= scoring.similarNames.jaroWinkler && !isGenericTitle(a)) return 'Names are spelled almost the same.';
+    if (longer.startsWith(`${shorter} `) && longer.split(' ').length === shorter.split(' ').length + 1) return { reason: `“${longer}” is “${shorter}” plus one word.`, weight: 0.75 };
+    if (Math.abs(a.length - b.length) <= 2 && jaroWinkler(a, b) >= scoring.similarNames.jaroWinkler && !isGenericTitle(a)) return { reason: 'Names are spelled almost the same.', weight: 0.85 };
     return null;
 }
 
-// Links from the clue readers (shared samples, timing, duplicates) between different songs.
+function addMatch(a, b, reason, weight) {
+    const existing = a.possibleMatches.find((match) => match.proposalId === b.proposalId);
+    if (existing) {
+        if (weight > existing.weight) Object.assign(existing, { reason, weight });
+        const other = b.possibleMatches.find((match) => match.proposalId === a.proposalId);
+        if (other && weight > other.weight) Object.assign(other, { reason, weight });
+        return;
+    }
+    a.possibleMatches.push({ proposalId: b.proposalId, songName: b.songName, reason, weight });
+    b.possibleMatches.push({ proposalId: a.proposalId, songName: a.songName, reason, weight });
+}
+
+// Links from the clue readers (shared samples, timing, duplicates) between different songs. Each song
+// then keeps its three strongest suggestions.
+const MAX_SUGGESTIONS = 3;
+
 function applyClueLinks(songs, links, mergeRule) {
     const songOfFile = new Map();
     for (const song of songs) for (const member of song.files) songOfFile.set(member.fileId, song);
@@ -448,14 +660,13 @@ function applyClueLinks(songs, links, mergeRule) {
             if (!a.reasons.some((reason) => reason.clue === link.clue)) a.reasons.push({ clue: link.clue, weight: link.weight, text: link.text });
             continue;
         }
-        if (!a.possibleMatches.some((match) => match.proposalId === b.proposalId)) {
-            a.possibleMatches.push({ proposalId: b.proposalId, songName: b.songName, reason: link.text });
-            b.possibleMatches.push({ proposalId: a.proposalId, songName: a.songName, reason: link.text });
-        }
+        addMatch(a, b, link.text, link.weight);
     }
     for (const song of songs) {
+        song.possibleMatches = song.possibleMatches.sort((x, y) => y.weight - x.weight || x.songName.localeCompare(y.songName)).slice(0, MAX_SUGGESTIONS);
         delete song._title;
         delete song._namespace;
+        delete song._dateKeyed;
     }
     return mergeRule;
 }
@@ -471,7 +682,7 @@ function matchExistingSongs(songs, existingSongs) {
         byIdentity.get(identity).push(existing);
     }
     for (const song of songs.filter((candidate) => candidate.kind === 'song')) {
-        const matches = byIdentity.get(canonicalSongIdentity(song.songName)) || [];
+        const matches = byIdentity.get(canonicalSongIdentity(song.canonicalIdentity || song.songName)) || [];
         if (matches.length === 1) {
             song.existingSongId = matches[0].id;
             song.reasons.push({ clue: 'canonical-name', weight: 0, text: `Already in your Library as “${matches[0].displayName || matches[0].songName}”.` });

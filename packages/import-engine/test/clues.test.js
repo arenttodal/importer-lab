@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const zlib = require('node:zlib');
 const { readAbleton } = require('../src/clues/ableton');
 const { readLogicPackage } = require('../src/clues/logic');
 const { readAudioDuration } = require('../src/clues/audio-header');
@@ -77,7 +78,7 @@ test('shared samples: projects sharing two or more samples are linked; library s
     ];
     const links = sharedSampleLinks(projects);
     assert.deepEqual(links.map((link) => link.fileIds.sort()), [['p1', 'p2']]);
-    assert.match(links[0].text, /2 samples/);
+    assert.match(links[0].text, /2 rare samples/);
 });
 
 test("timing: a bounce saved shortly after a project, with the arrangement's length", () => {
@@ -99,4 +100,30 @@ test('duplicates: identical content under different names is found; only same-si
     assert.equal(duplicates.length, 1);
     assert.deepEqual([duplicates[0].keepFileId, duplicates[0].copies], ['d0', ['d1']]);
     assert.equal(hashed, 2, 'the file with a unique size is never read');
+});
+
+test('shared samples: a sample in four or more projects is the producer\'s library, not a link', () => {
+    const projects = [
+        { fileId: 'p1', samples: ['my kick.wav', 'my snare.wav'] },
+        { fileId: 'p2', samples: ['my kick.wav', 'my snare.wav'] },
+        { fileId: 'p3', samples: ['my kick.wav', 'my snare.wav'] },
+        { fileId: 'p4', samples: ['my kick.wav', 'my snare.wav'] }
+    ];
+    assert.deepEqual(sharedSampleLinks(projects), []);
+});
+
+test('ableton: samples are told apart by name and stored size, so same-named recordings do not link', (t) => {
+    const set = (refs) => zlib.gzipSync(`<?xml version="1.0"?><Ableton><LiveSet><Tracks></Tracks>${refs.map(([name, size]) => `<FileRef><RelativePath Value="Samples/Recorded/${name}"/><OriginalFileSize Value="${size}"/></FileRef>`).join('')}</LiveSet></Ableton>`);
+    const a = readAbleton(tempFile(t, 'A.als', set([['1-Audio 0001.wav', 1000], ['2-Audio 0001.wav', 2000]])));
+    const b = readAbleton(tempFile(t, 'B.als', set([['1-Audio 0001.wav', 3000], ['2-Audio 0001.wav', 4000]])));
+    assert.deepEqual(sharedSampleLinks([{ fileId: 'a', samples: a.samples }, { fileId: 'b', samples: b.samples }]), []);
+});
+
+test('duplicates: same-size files with different content are told apart by a quick edge check, not a full read', async (t) => {
+    const a = tempFile(t, 'Glass Drums.wav', wavBytes(1, 440));
+    const b = tempFile(t, 'Glass Bass.wav', wavBytes(1, 220));
+    const files = [a, b].map((filePath, index) => ({ fileId: `e${index}`, path: filePath, sizeBytes: fs.statSync(filePath).size, modifiedAt: '2024-01-01T00:00:00Z' }));
+    assert.equal(files[0].sizeBytes, files[1].sizeBytes);
+    const { duplicates, hashed, checked } = await findDuplicates(files);
+    assert.deepEqual([duplicates.length, hashed, checked], [0, 0, 2]);
 });

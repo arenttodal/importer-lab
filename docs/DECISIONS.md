@@ -3,6 +3,59 @@
 Newest first. Each entry: what was decided, why, and what would change it. Conflicts between the spec
 and the brief are in `docs/CONFLICTS.md`; this log records how the build resolved them.
 
+## 2026-11-07 — dev.5: fixes after the first real M2 scan
+
+**D44. Numbers contained in numbers.** Numbered files in different folders without the plain title
+join when one file's numbers contain the other's ("80" in "80 1"); otherwise they stay apart (D35).
+Numbers are kept in the order they appear.
+
+**D45. Suggestions are evidence, ranked and capped.** Never between titles that name a day, never
+between titles that differ only by number (both are different sessions by design). Shared samples
+count only when two or more are rare (used by at most 3 projects); a sample is its name plus the size
+Ableton stored, so same-named recordings in different projects differ. Every suggestion carries a
+weight (plural 0.9, near-identical spelling 0.85, one extra word 0.75; clue links their own weight);
+each song keeps its three strongest.
+
+**D46. Per-step timings.** The engine reports crawl, live preview, placeholder check, file reading,
+links, duplicate check, today's importer and grouping; the worker adds store lookup, store save and
+the total. Shown in Metrics and in the results file (`scan.timings`, `scan.clueCounts`). Cached clue
+results carry a format number; a reader change re-reads each file once.
+
+**D47. Duplicate pre-check.** Same-size files are compared by a SHA-256 of their first and last 64 KB
+(lab-side, read-only) before the app's `hashFileSha256` reads them in full; only matching edges are
+hashed. The app's hash still decides every duplicate.
+
+**D48. Display names (IMP-FN-007-R14).** `canonicalIdentity` is for comparison only. The display name
+is the producer's most complete title in the group with only noise removed (format, tech, backup
+marker, version, stage, render, edit, repeats, descriptive tails, stem parts); series, dates,
+categories, clients and contributors stay. If that leaves one word, a lighter clean (format, tech,
+marker, stage, version and numbers only) is used. Stem sets use the name their files share; one-shots
+keep the sound's name. Names that still collide get the folder name, then the month, then a number.
+
+**D49. Sample packs from one-shots.** A folder with four or more short one-shot names (kick, clap,
+snare, hat, sfx, perc, bass, kit, hits…) and no project is pack-like; its one-shots are kind
+sample-pack and are never an export batch's mix. Observed: the reported "pack" files are all 3:10.7
+long and the same size, which looks like stems exported together; they are out of the song count
+either way. *Revisit when:* marks show they belong to a song.
+
+**D50. Lone stems.** A stem set of one stem tries, after exact name and export batch, a song in the same
+folder whose title begins or ends its own; otherwise it goes to one review entry, "Loose stems"
+(`catalog.looseStems`, contract 1.2.0). Lone stems named as templates, course or sample-pack material
+keep that kind.
+
+**D51. Course prefixes found automatically.** `src/course.js` suggests a prefix with three or more files
+when it has course words (tutorial, lesson, module, voice over…), is an upper-case code that stands
+alone as a prefix and appears in another prefix ("ZQT", "ZQT Demo"), or ends in a number and holds only
+projects. Category prefixes, contributors, ordinary words in capitals and "A x B" collaborations are
+never suggested. The catalog asks "Looks like course material: … Confirm?"; confirming adds them to the
+manual list and scans again, declining stores them so they are never asked again.
+
+**D52. "Check 30 songs".** A random sample (crypto-random shuffle) of up to 30 songs, shown one at a time
+in song detail with Right / Wrong / Should be split / Should be merged… / Skip. Answers are ordinary
+marks with `check: true`, the song's band and kind; the results file adds `check` (answered, right,
+wrong, split, merge) for the exported scan. A random sample gives an unbiased accuracy figure; the
+"This is wrong" marks do not.
+
 ## 2026-11-07 — M2: the engine groups songs
 
 **D33. Merge rule and bands.** Default merge rule is `exact-identity-only`: a song is **sure** only when

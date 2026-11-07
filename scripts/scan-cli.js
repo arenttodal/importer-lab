@@ -51,6 +51,8 @@ async function main() {
     console.log(`  folders read     ${notes.folders}  (unreadable ${notes.unreadableFolders}, symlinks skipped ${notes.symlinksSkipped})`);
     console.log(`  placeholders     ${notes.placeholdersFound} found, ${stats.placeholdersSkipped} left out`);
     console.log(`  reused           ${notes.reusedFromStore} unchanged files from the last scan`);
+    if (notes.timings) console.log(`  timings (ms)     ${Object.entries(notes.timings).map(([key, ms]) => `${key.replace(/Ms$/, "")} ${ms}`).join(", ")}`);
+    if (notes.clueCounts) console.log(`  clue files       ${JSON.stringify(notes.clueCounts)}`);
     console.log(`  today's importer ${baselines.preserve.groups.length} songs keeping prefixes, ${baselines.strip.groups.length} songs stripping prefixes`);
     console.log(`  ambiguous        ${baselines.preserve.tier3Count} / ${baselines.strip.tier3Count} singletons`);
 

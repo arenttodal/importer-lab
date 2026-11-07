@@ -66,9 +66,33 @@ function rendererSong(song) {
     };
 }
 
+// Loose stems (no song by name, folder or export batch) are one review entry, never one each.
+function looseStemsEntry(stems) {
+    return {
+        key: 'loose-stems',
+        name: 'Loose stems',
+        kind: 'loose-stems',
+        band: 'unclear',
+        confidence: 0,
+        precheck: false,
+        unsure: true,
+        namespace: null,
+        counts: { stems: stems.length },
+        countsLine: plural(stems.length, 'stems'),
+        fileIds: stems.map((file) => file.fileId),
+        versions: [],
+        stemSets: [],
+        reasons: [...new Set(stems.map((file) => file.reason))],
+        possibleMatches: [],
+        facts: {},
+        existingSongId: null
+    };
+}
+
 function toRendererView(result, roots) {
     const { catalog } = result;
-    const files = [...catalog.unassigned, ...catalog.songs.flatMap((song) => song.files)];
+    const looseStems = catalog.looseStems || [];
+    const files = [...catalog.unassigned, ...catalog.songs.flatMap((song) => song.files), ...looseStems];
     return {
         scanId: result.scanId,
         roots: roots.map((root) => ({ id: root.id, name: root.name })),
@@ -84,12 +108,15 @@ function toRendererView(result, roots) {
             placeholdersFound: result.notes.placeholdersFound,
             reusedFromStore: result.notes.reusedFromStore,
             projectsRead: result.notes.projectsRead || 0,
+            timings: result.notes.timings || {},
+            courseSuggestions: (result.notes.courseSuggestions || []).map((entry) => ({ prefix: entry.prefix, files: entry.files, signal: entry.signal })),
+            clueCounts: result.notes.clueCounts || {},
             links: result.notes.links || 0,
             contributors: result.notes.learned?.contributors || [],
             baselineLog: result.notes.baselineLog
         },
         files: files.map(rendererFile),
-        songs: catalog.songs.map(rendererSong),
+        songs: [...catalog.songs.map(rendererSong), ...(looseStems.length ? [looseStemsEntry(looseStems)] : [])],
         duplicates: catalog.duplicates.length,
         otherFiles: catalog.unassigned.length,
         baselines: {

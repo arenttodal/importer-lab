@@ -1,6 +1,6 @@
 'use strict';
 
-// Tests first for the name policy (lab-names-1). Names are invented; each case follows a pattern
+// Tests first for the name policy (lab-names-2). Names are invented; each case follows a pattern
 // from docs/FINDINGS.md. `title` is the song identity the policy proposes; `label` collects the
 // words it set aside as a version label; `stemPart` is the part named in a stem file.
 

@@ -43,3 +43,11 @@ test('unknown mark kinds are refused', (t) => {
     const data = setup(t);
     assert.throws(() => labels.addMark(data, 'cat1', { kind: 'delete-file', target: 'file' }, CONTEXT), /Unknown mark/);
 });
+
+test('"Check 30 songs" answers are saved as marks flagged as part of the check, with the band and kind', (t) => {
+    const data = setup(t);
+    labels.addMark(data, 'cat1', { kind: 'right', target: 'song', songName: 'Sky', check: true, songBand: 'sure', songKind: 'song' }, CONTEXT);
+    labels.addMark(data, 'cat1', { kind: 'split', target: 'song', songName: 'Glass', songBand: 'sure' }, CONTEXT);
+    const saved = labels.loadLabels(data, 'cat1').marks;
+    assert.deepEqual(saved.map((mark) => [mark.kind, mark.check, mark.songBand]), [['right', true, 'sure'], ['split', false, null]]);
+});

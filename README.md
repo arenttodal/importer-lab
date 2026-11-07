@@ -34,7 +34,11 @@ bands arrive in M2.
    material, sample packs and stem-only sets are not counted as songs; a button shows them. Click a
    song for its files, the reasons they are together, its versions, stem sets, project facts (tempo,
    length) and songs it might be the same as.
-6. **This is wrong** on a song or a file saves a mark in two clicks.
+6. **This is wrong** on a song or a file saves a mark in two clicks. **Check 30 songs** shows a random
+   sample one song at a time with **Right**, **Wrong**, **Should be split**, **Should be merged…** and
+   **Skip**; the answers go in the results file. If the catalog looks like it holds course material,
+   the app names the prefixes and asks once; **Yes** scans again with them set aside. Stems that belong
+   to no song are listed once, under **Loose stems**.
 7. **Send results to the team** saves one file (names, counts, marks and timings — no paths, no audio)
    and shows it in Finder, ready to attach to a message.
 

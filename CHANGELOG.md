@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.2.0-dev.5 — 2026-11-07 (fixes after the first real M2 scan)
+
+Measured on the dev.4 results from a real catalog (replay with folders, dates and sizes; no project
+contents), dev.4 engine → dev.5 engine:
+
+| Fix | Before → after |
+| --- | --- |
+| 1. Numbered files join when one's numbers contain the other's | 1 of the 5 songs the dev.4 numbers rule split rejoins (a project "… 80 Project" and its bounce "… 80 1"); the other 4 differ in number and folder ("1" vs "3") and stay apart |
+| 2. No suggestions between different dates of a series, or titles that differ only by number | name-based suggestions 480 on 221 songs → 103 on 78 |
+| 3. Sample links need two shared rare samples (each in at most 3 projects), told apart by name and stored size; at most 3 suggestions per song, strongest first | the sample-based part only shows in a real scan (was 1,122 suggestions on 339 songs in total) |
+| 4. Time for every step in Metrics and the results file; a quick 64 KB edge check before hashing same-size files in full | timings: new; stored clue results from older builds are read once more (format 2) |
+| 5. Display names: the producer's own fullest title with only the noise removed; never shared | 9 shared display names → 0; one-word names 73 → 13 (all real one-word titles) |
+| 6. One-shots in a pack-like folder are a sample pack, never a song or an export batch's mix | 6 one-shot groups that were songs ("Claps", "Kick" …) → sample packs; songs 922 → 916 |
+| 7. A lone stem joins a song in its folder; otherwise one "Loose stems" review entry | one-stem entries 32 → 0 (2 joined a song, 4 kept their template or pack kind, 26 loose); stem sets 46 → 14 |
+| 8. Course prefixes found automatically, confirmed in one click | 0 → 8 found (all 7 of the producer's own list, plus one voice-over prefix); confirming them gives 869 songs and 54 course items |
+| 9. "Check 30 songs": a random sample with Right / Wrong / Split / Merge | new; answers are marks flagged `check`, summed up in the results file |
+
+Lab regressions found by that scan and fixed here (not in `docs/FINDINGS.md`, which covers today's
+importer only):
+- The M2 numbers rule split a project from its bounce when their numbers differed only by a take
+  ("80" vs "80 1").
+- "Might be the same song as" was noise: 1,122 suggestions on 339 songs, including different dates of a
+  series and projects linked by the producer's own reused samples or by same-named recordings.
+- Display names came from the comparison identity ("Nov 27", "Glasshouse", "Intro"), and two clients'
+  songs could share one name.
+- An export batch could pick a one-shot ("Claps") as its mix, making a sample pack into a song.
+- Single stems with no song became entries of their own.
+
+Also: contract 1.2.0 (optional `looseStems`, suggestion `weight`), engine 0.2.1-m2, name policy
+`lab-names-2`, results file `check` summary and per-step `timings`.
+
 ## 0.2.0 — 2026-11-07 (M2: the engine groups songs)
 
 What changed, in plain words:

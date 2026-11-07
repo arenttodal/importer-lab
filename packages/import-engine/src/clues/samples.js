@@ -1,18 +1,16 @@
 'use strict';
 
-// Shared samples (SPEC step 4): projects that use two or more of the same samples are versions of
-// one song. A sample used in more than 5% of projects (and at least 3) is a library sound and
-// counts for nothing.
+// Shared samples (SPEC step 4): projects that share two or more rare samples may be versions of one
+// song. A sample is rare when at most 3 projects use it; anything more common is the producer's
+// library (their own drum hits and loops reused everywhere) and counts for nothing.
 
 const MIN_SHARED = 2;
-const LIBRARY_SHARE = 0.05;
-const LIBRARY_MIN = 3;
+const RARE_MAX_PROJECTS = 3;
 
 function sharedSampleLinks(projects) {
     const usage = new Map();
     for (const project of projects) for (const sample of new Set(project.samples)) usage.set(sample, (usage.get(sample) || 0) + 1);
-    const libraryLimit = Math.max(LIBRARY_MIN, projects.length * LIBRARY_SHARE);
-    const own = (project) => new Set(project.samples.filter((sample) => (usage.get(sample) || 0) < libraryLimit));
+    const own = (project) => new Set(project.samples.filter((sample) => (usage.get(sample) || 0) <= RARE_MAX_PROJECTS));
     const index = new Map();
     const owned = projects.map((project) => ({ project, samples: own(project) }));
     for (const { project, samples } of owned) for (const sample of samples) {
@@ -29,7 +27,7 @@ function sharedSampleLinks(projects) {
     }
     return [...pairs.entries()]
         .filter(([, count]) => count >= MIN_SHARED)
-        .map(([key, count]) => ({ clue: 'sharedSamples', fileIds: key.split('|'), weight: 0.7, text: `These projects use ${count} samples in common (library sounds left out).` }));
+        .map(([key, count]) => ({ clue: 'sharedSamples', fileIds: key.split('|'), weight: 0.7, text: `These projects use ${count} rare samples in common (sounds used in many projects left out).` }));
 }
 
 module.exports = { sharedSampleLinks };

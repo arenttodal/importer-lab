@@ -28,10 +28,10 @@ test('the results file has names, counts, marks and timings', async (t) => {
     const parsed = JSON.parse(json);
     assert.equal(parsed.format, 'importer-lab-results');
     assert.equal(parsed.version, 2);
-    const sky = parsed.songs.find((song) => song.name === 'Sky');
+    const sky = parsed.songs.find((song) => song.files.some((file) => file.name === 'SKY.wav'));
     assert.ok(sky.files.every((file) => /^[0-9a-f]{12}$/.test(file.folderId) && file.modifiedAt && file.today));
     assert.equal(parsed.songs.length, view.songs.length);
-    assert.ok(parsed.songs.find((song) => song.name === 'Sky').files.some((file) => file.name === 'SKY.wav'));
+    assert.ok(sky.name.endsWith('Sky'));
     assert.equal(parsed.marks.length, 1);
     assert.equal(typeof parsed.scan.durationMs, 'number');
 });
@@ -54,4 +54,20 @@ test('the results file is written inside the lab data folder', async (t) => {
     assert.equal(path.dirname(file), path.join(data, 'exports'));
     assert.match(path.basename(file), /^Importer Lab results \d{4}-\d{2}-\d{2} \d{2}\.\d{2}\.json$/);
     assert.ok(fs.existsSync(file));
+});
+
+test('the results file sums up the answers of "Check 30 songs" for this scan, with per-step timings', async (t) => {
+    const parent = tempDir(t, 'lab-export-');
+    const { root } = generateCatalog(path.join(parent, 'catalog-a'));
+    const result = await scanCatalog({ roots: [root], options: { followSymlinks: false, includeCloudPlaceholders: 'list', ai: { enabled: false, maxCostUsd: 0, model: '' }, mergeRule: 'exact-identity-only', identityPolicyVersion: 'x' } });
+    const view = toRendererView({ scanId: 's1', ...result }, [{ id: 'r', name: 'catalog-a', path: root }]);
+    const marks = [
+        { id: 'a', kind: 'right', target: 'song', songName: 'X', check: true, scanId: 's1' },
+        { id: 'b', kind: 'merge', target: 'song', songName: 'Y', check: true, scanId: 's1' },
+        { id: 'c', kind: 'right', target: 'song', songName: 'Z', check: true, scanId: 'older-scan' },
+        { id: 'd', kind: 'split', target: 'song', songName: 'W', scanId: 's1' }
+    ];
+    const parsed = buildResults({ view, labels: { marks }, app: { labVersion: 'test' } });
+    assert.deepEqual(parsed.check, { answered: 2, right: 1, wrong: 0, split: 0, merge: 1 });
+    assert.equal(typeof parsed.scan.timings.readFilesMs, 'number');
 });

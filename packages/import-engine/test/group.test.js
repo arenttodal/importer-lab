@@ -204,7 +204,8 @@ test('guardrail: a two-letter title never gathers different pieces', () => {
 
 test('"Alt Rock" is a title, not an alternate version', () => {
     const result = groupCatalog([file('Song Ideas - Alt Rock Bey.wav'), file('Song Ideas - Alt Rock Bey 122.wav'), file('Song Ideas - Indie Pop.wav')]);
-    assert.equal(songOf(result, 'Song Ideas - Alt Rock Bey.wav').songName, 'Alt Rock Bey');
+    assert.equal(songOf(result, 'Song Ideas - Alt Rock Bey.wav').canonicalIdentity, 'alt rock bey');
+    assert.equal(songOf(result, 'Song Ideas - Alt Rock Bey.wav').songName, 'Song Ideas - Alt Rock Bey');
     assert.ok(!sameSong(result, 'Song Ideas - Alt Rock Bey.wav', 'Song Ideas - Indie Pop.wav'));
 });
 
@@ -256,4 +257,105 @@ test('numbered takes in one folder stay one song; without folder information not
     assert.ok(sameSong(takes, 'Glass Sketch 1.wav', 'Glass Sketch 2.wav', 'Glass Sketch 2 Bass.wav'));
     const unknown = groupCatalog([file('Glass Sketch 1.wav'), file('Glass Sketch 2.wav')]);
     assert.ok(sameSong(unknown, 'Glass Sketch 1.wav', 'Glass Sketch 2.wav'));
+});
+
+test('numbered files join when one file\'s numbers contain the other\'s', () => {
+    const result = groupCatalog([
+        file('Nimbus - Copper Loop 80 Project', 'projects', { folder: 'P' }),
+        file('Nimbus - Copper Loop 80 1.wav', 'bounces', { folder: 'B' }),
+        file('Nimbus - Copper Loop 80 1.wav', 'bounces', { folder: 'C' }),
+        file('Nimbus - Copper Loop 72.wav', 'bounces', { folder: 'D' })
+    ]);
+    assert.ok(sameSong(result, 'Nimbus - Copper Loop 80 Project', 'Nimbus - Copper Loop 80 1.wav'));
+    const project = songOf(result, 'Nimbus - Copper Loop 80 Project');
+    assert.ok(!project.files.some((member) => member.name === 'Nimbus - Copper Loop 72.wav'), 'a different number in another folder stays apart');
+});
+
+test('suggestions: different dates in a series are never suggested; each song keeps its 3 strongest', () => {
+    const dated = groupCatalog([file('Tuesday Oct 10.wav'), file('Tuesday 17 Oct.wav'), file('Tuesday Oct 24.wav')]);
+    assert.equal(dated.songs.reduce((sum, song) => sum + song.possibleMatches.length, 0), 0);
+    const many = groupCatalog(['Copper Field', 'Copper Fields', 'Copper Field Dawn', 'Copper Field Dusk', 'Copper Field Rain', 'Copper Field Snow'].map((name) => file(`${name}.wav`)));
+    const base = songOf(many, 'Copper Field.wav');
+    assert.equal(base.possibleMatches.length, 3);
+    assert.equal(base.possibleMatches[0].songName, 'Copper Fields', 'the plural (strongest) comes first');
+    assert.ok(base.possibleMatches.every((match, index, list) => index === 0 || list[index - 1].weight >= match.weight));
+});
+
+test('display names: the producer\'s own fullest title with only the noise removed; never shared', () => {
+    const result = groupCatalog([
+        file('Morning 5 - Monday Nov 27.wav'),
+        file('Morning 5 - Monday Nov 27 Pitched.wav'),
+        file('NIMBUS - Glasshouse - Final Master 1.1.wav'),
+        file('Glasshouse v2 320kbps.mp3'),
+        file('NIMBUS - Other Cue.wav'),
+        file('NIMBUS - Third Cue.wav'),
+        file('KESTREL RUN Project PD', 'projects'),
+        file('KESTREL RUN v1.wav'),
+        file('QUILL - Running Demo 2.2.wav'),
+        file('QUILL - Other Song.wav'),
+        file('MARLOW - Running Demo 2.1.wav'),
+        file('MARLOW - Third Song.wav'),
+        file('Untitled 14.wav', 'bounces', { folder: 'A', sourceRelativePath: 'Album/Untitled 14.wav' }),
+        file('Untitled 14.wav', 'bounces', { folder: 'B', sourceRelativePath: 'Live Takes/Untitled 14.wav' })
+    ]);
+    assert.equal(songOf(result, 'Morning 5 - Monday Nov 27 Pitched.wav').songName, 'Morning 5 - Monday Nov 27', 'series and date stay; render word goes');
+    assert.equal(songOf(result, 'Glasshouse v2 320kbps.mp3').songName, 'Nimbus - Glasshouse', 'a one-word title takes the fuller title');
+    assert.equal(songOf(result, 'KESTREL RUN v1.wav').songName, 'Kestrel Run', 'version words and the backup marker go');
+    const names = result.songs.map((song) => song.songName.toLowerCase());
+    assert.equal(new Set(names).size, names.length, 'two songs never share a display name');
+    assert.ok(names.includes('quill - running') && names.includes('marlow - running'), 'two clients\' songs keep their client');
+    assert.ok(names.includes('untitled 14 (album)') && names.includes('untitled 14 (live takes)'), 'the folder tells namesakes apart');
+    assert.equal(songOf(result, 'Morning 5 - Monday Nov 27.wav').canonicalIdentity !== songOf(result, 'Morning 5 - Monday Nov 27.wav').songName, true);
+});
+
+test('display names: a one-word clean falls back to the fuller title', () => {
+    const result = groupCatalog([file('Guitar Loop - 135 Somber Loop.wav')]);
+    assert.equal(result.songs[0].songName, 'Guitar Loop - Somber Loop');
+});
+
+test('sample packs: one-shots in a pack-like folder are a sample pack, never a song or a mix', () => {
+    const folder = { folder: 'PACK' };
+    const result = groupCatalog([
+        file('STORM -  CLAPS.wav', 'bounces', folder),
+        file('STORM -  Big Snare.wav', 'bounces', folder),
+        file('STORM -  HIP HOP KIT.wav', 'bounces', folder),
+        file('STORM -  BASSES.wav', 'bounces', folder),
+        file('STORM -  SFX 2.wav', 'bounces', folder),
+        file('STORM -  KICK.wav', 'bounces', folder),
+        file('STORM -  Kick 2.wav', 'bounces', folder),
+        file('Kick Drum Anthem.wav', 'bounces', { folder: 'SONGS' })
+    ], { links: [{ clue: 'exportBatch', fileIds: ['f-none'] }] });
+    for (const name of ['STORM -  CLAPS.wav', 'STORM -  BASSES.wav', 'STORM -  KICK.wav', 'STORM -  SFX 2.wav']) assert.equal(songOf(result, name).kind, 'sample-pack', name);
+    assert.equal(songOf(result, 'Kick Drum Anthem.wav').kind, 'song', 'a song title with a one-shot word outside a pack folder stays a song');
+});
+
+test('sample packs: an export batch never takes a one-shot as its mix', () => {
+    const folder = { folder: 'PACK' };
+    const files = ['CLAPS', 'Big Snare', 'HIP HOP KIT', 'BASSES', 'SFX 2'].map((part) => file(`STORM -  ${part}.wav`, 'bounces', folder));
+    const result = groupCatalog(files, { links: [{ clue: 'exportBatch', fileIds: files.map((member) => member.fileId) }] });
+    assert.ok(result.songs.every((song) => song.kind !== 'song'), result.songs.map((song) => `${song.songName}:${song.kind}`).join(', '));
+});
+
+test('lone stems: one stem joins a song in its folder by the start of its name, else it is a loose stem', () => {
+    const result = groupCatalog([
+        file('Copper Field.wav', 'bounces', { folder: 'A' }),
+        file('Copper Field Choir Take Vox.wav', 'stems', { folder: 'A' }),
+        file('Sky.wav', 'bounces', { folder: 'B' }),
+        file('Sky Structure Piano.wav', 'stems', { folder: 'C' }),
+        file('Unknown Session Strings.wav', 'stems', { folder: 'D' })
+    ]);
+    assert.ok(sameSong(result, 'Copper Field.wav', 'Copper Field Choir Take Vox.wav'));
+    assert.ok(!songOf(result, 'Sky Structure Piano.wav'), 'a stem in another folder never joins a shorter title');
+    const loose = result.looseStems.map((member) => member.name).sort();
+    assert.deepEqual(loose, ['Sky Structure Piano.wav', 'Unknown Session Strings.wav']);
+    assert.equal(result.songs.filter((song) => song.kind === 'stem-set').length, 0);
+});
+
+test('suggestions: titles that differ only by number are never suggested; one-shot stems in a pack stay in the pack', () => {
+    const numbered = groupCatalog([file('Lantern 164.wav', 'bounces', { folder: 'A' }), file('Lantern 156.wav', 'bounces', { folder: 'B' }), file('Lantern 167.wav', 'bounces', { folder: 'C' })]);
+    assert.equal(numbered.songs.reduce((sum, song) => sum + song.possibleMatches.length, 0), 0);
+    const folder = { folder: 'PACK' };
+    const pack = groupCatalog(['CLAPS', 'HIP HOP KIT', 'BASSES', 'SFX 2', 'KICK'].map((part) => file(`STORM -  ${part}.wav`, 'bounces', folder)).concat([file('STORM -  Big Snare.wav', 'stems', folder)]));
+    assert.equal(pack.looseStems.length, 0);
+    assert.equal(songOf(pack, 'STORM -  Big Snare.wav').kind, 'sample-pack');
 });

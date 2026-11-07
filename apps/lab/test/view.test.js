@@ -39,7 +39,8 @@ test('songs: every grouped file is in one song, with plain reasons; kinds and ba
         assert.ok(['sure', 'unsure', 'unclear'].includes(song.band));
         assert.ok(['song', 'template', 'course', 'sample-pack', 'stem-set'].includes(song.kind));
     }
-    const sky = view.songs.find((song) => song.name === 'Sky');
+    const skyId = view.files.find((file) => file.name === 'SKY.wav').fileId;
+    const sky = view.songs.find((song) => song.fileIds.includes(skyId));
     assert.ok(sky.fileIds.length >= 9, 'Sky gathers its bounces, projects, stems and the SKY FINAL mix');
     assert.equal(sky.facts.bpm, 122);
 });

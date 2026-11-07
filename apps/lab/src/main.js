@@ -133,7 +133,7 @@ async function startScanning() {
             mergeRule: settings.scanOptions.mergeRule === 'multi-clue' ? 'multi-clue' : 'exact-identity-only',
             identityPolicyVersion: `app-${PINNED_COMMIT.slice(0, 8)}`,
             groupEdits: settings.scanOptions.groupEdits !== false,
-            catalogRules: { courseNamespaces: settings.scanOptions.courseNamespaces || [] }
+            catalogRules: { courseNamespaces: settings.scanOptions.courseNamespaces || [], declinedCoursePrefixes: settings.scanOptions.declinedCoursePrefixes || [] }
         },
         existingSongs: existingSongsForScan()
     };
@@ -175,6 +175,8 @@ function registerIpc() {
         else if (key === 'groupEdits') updateSettings({ scanOptions: { ...settings.scanOptions, groupEdits: value === true } });
         else if (key === 'courseNamespaces')
             updateSettings({ scanOptions: { ...settings.scanOptions, courseNamespaces: String(value).split(',').map((item) => item.trim().toLowerCase()).filter(Boolean).slice(0, 50) } });
+        else if (key === 'declinedCoursePrefixes')
+            updateSettings({ scanOptions: { ...settings.scanOptions, declinedCoursePrefixes: (Array.isArray(value) ? value : []).map((item) => String(item).trim().toLowerCase()).filter(Boolean).slice(0, 100) } });
         else throw new Error(`Unknown setting: ${key}`);
         buildMenu();
         return publicSettings();

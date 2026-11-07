@@ -57,7 +57,7 @@ async function main() {
     await page.click('#seeCatalog');
     await settle(page);
     await snap('catalog');
-    await page.locator('tr[data-song] .song-name-line p', { hasText: /^Sky$/ }).first().click();
+    await page.locator('tr[data-song] .song-name-line p', { hasText: /(^| - )Sky$/ }).first().click();
     await settle(page);
     await snap('song-detail');
     await page.click('#songActions [data-wrong-song]');
@@ -76,6 +76,25 @@ async function main() {
     await settle(page, 600);
     await snap('song-marked');
     await page.click('#navBack');
+    await settle(page);
+    if (await page.isVisible('#courseAlert')) await snap('course-suggestion');
+    const loose = page.locator('tr[data-song="loose-stems"] .song-name-line p');
+    if (await loose.count()) {
+        await loose.first().click();
+        await settle(page);
+        await snap('loose-stems');
+        await page.click('#navBack');
+    }
+    await page.click('#checkStart');
+    await settle(page);
+    await snap('check-30-songs');
+    for (const answer of ['right', 'skip', 'wrong-song']) {
+        await page.click(`#checkBar [data-check="${answer}"]`);
+        await settle(page, 250);
+    }
+    await snap('check-30-songs-later');
+    await page.click('#navBack');
+    await settle(page);
     await page.click('#exportResults');
     await settle(page, 600);
     await snap('send-results');

@@ -31,10 +31,10 @@ test('every ground-truth file of the synthetic catalog is in the catalog and in 
     }
 });
 
-test('catalog follows contract 1.1.0 and the baseline runs in both modes', async (t) => {
+test('catalog follows contract 1.2.0 and the baseline runs in both modes', async (t) => {
     const { root } = makeCatalog(t);
     const result = await scanCatalog(scanRequest([root]));
-    assert.equal(result.catalog.contractVersion, '1.1.0');
+    assert.equal(result.catalog.contractVersion, '1.2.0');
     assert.equal(result.catalog.stats.files, allFiles(result.catalog).length);
     assert.ok(result.catalog.baselineStripPrefixes.groups.length > 0);
     assert.equal(result.catalog.stats.cappedAt, null);
@@ -124,4 +124,16 @@ test('M2: the synthetic catalog becomes the expected songs, with project facts a
     assert.equal(songOf('SKY.wav').facts.bpm, 122, 'tempo read from the Ableton project');
     assert.ok(result.catalog.duplicates.some((set) => set.copies.length >= 1), 'the copied SKY master is a duplicate');
     assert.ok(result.notes.projectsRead >= 5);
+});
+
+test('every step is timed; a re-scan opens no unchanged file for clues', async (t) => {
+    const { root } = makeCatalog(t);
+    const first = await scanCatalog(scanRequest([root]));
+    for (const step of ['crawlMs', 'previewGroupingMs', 'placeholdersMs', 'readFilesMs', 'linksMs', 'duplicatesMs', 'baselineMs', 'groupingMs']) {
+        assert.equal(typeof first.notes.timings[step], 'number', step);
+    }
+    assert.ok(first.notes.clueCounts.filesOpened > 0);
+    const stored = new Map(first.records.map(({ item, derived }) => [item.path, { size: item.size, mtimeMs: item.mtimeMs, derived }]));
+    const second = await scanCatalog(scanRequest([root]), { previous: (item) => stored.get(item.path) || null });
+    assert.equal(second.notes.clueCounts.filesOpened, 0);
 });

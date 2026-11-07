@@ -124,6 +124,7 @@
                         <p id="catalogCount" class="lab-lede"></p>
                     </div>
                     <div class="lab-actions">
+                        <button id="checkStart" class="std-modal-btn std-modal-btn--secondary" type="button">Check 30 songs</button>
                         <button id="rescan" class="std-modal-btn std-modal-btn--secondary" type="button">Scan again</button>
                         <button id="exportResults" class="std-modal-btn std-modal-btn--primary" type="button">Send results to the team</button>
                     </div>
@@ -132,6 +133,16 @@
                     <div class="std-alert-body">
                         <div class="std-alert-title">Some folders could not be read</div>
                         <div class="std-alert-text"><span id="unreadableText"></span> <button id="openPrivacy" class="std-inline-btn" type="button">Open System Settings</button></div>
+                    </div>
+                </div>
+                <div id="courseAlert" class="std-alert std-alert--info lab-alert" hidden>
+                    <div class="std-alert-body">
+                        <div class="std-alert-title">Looks like course material: <span id="courseList"></span>. Confirm?</div>
+                        <div class="std-alert-text">
+                            <span id="courseDetail"></span>
+                            <button id="courseConfirm" class="std-inline-btn" type="button">Yes, not songs — scan again</button>
+                            <button id="courseDecline" class="std-inline-btn" type="button">No, these are songs</button>
+                        </div>
                     </div>
                 </div>
                 <table id="tracksGrid" class="display lab-grid">
@@ -152,6 +163,18 @@
 
             <!-- Song detail -->
             <section class="lab-screen lab-screen--wide" data-screen="song" hidden>
+                <div id="checkBar" class="std-alert std-alert--info lab-alert" hidden>
+                    <div class="std-alert-body">
+                        <div class="std-alert-title"><span id="checkProgress"></span> · Is this one song, shown correctly?</div>
+                        <div class="std-alert-text lab-actions">
+                            <button class="std-modal-btn std-modal-btn--primary" type="button" data-check="right">Right</button>
+                            <button class="std-modal-btn std-modal-btn--secondary" type="button" data-check="wrong-song">Wrong</button>
+                            <button class="std-modal-btn std-modal-btn--secondary" type="button" data-check="split">Should be split</button>
+                            <button class="std-modal-btn std-modal-btn--secondary" type="button" data-check="merge">Should be merged…</button>
+                            <button class="std-inline-btn" type="button" data-check="skip">Skip</button>
+                        </div>
+                    </div>
+                </div>
                 <div class="lab-catalog-head">
                     <div>
                         <h1 id="songTitle" class="lab-heading"></h1>
@@ -186,6 +209,16 @@
                     </thead>
                     <tbody id="songFiles"></tbody>
                 </table>
+            </section>
+
+            <!-- End of "Check 30 songs" -->
+            <section class="lab-screen" data-screen="checkDone" hidden>
+                <h1 class="lab-heading">Thank you</h1>
+                <p id="checkSummary" class="lab-lede"></p>
+                <div class="lab-actions">
+                    <button id="checkExport" class="std-modal-btn std-modal-btn--primary" type="button">Send results to the team</button>
+                    <button id="checkToCatalog" class="std-modal-btn std-modal-btn--secondary" type="button">Back to your catalog</button>
+                </div>
             </section>
 
             <!-- Lab tools (hidden unless switched on in Settings) -->

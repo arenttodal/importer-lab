@@ -16,6 +16,8 @@ const { findDuplicates } = require('./clues/duplicates');
 const { isPlaceholderCandidate } = require('./placeholder');
 
 const HEADER_FORMATS = new Set(['wav', 'aif', 'aiff']);
+// Bump when a reader changes what it stores, so cached results from older builds are read again.
+const CLUES_VERSION = 2;
 
 function lstatOrNull(filePath) {
     try {
@@ -47,8 +49,8 @@ function readable(filePath) {
 
 // Reads what each file can tell, filling `derived` (cached) and returning project facts.
 function readFileClues(file, item, derived) {
-    if (derived.cloudPlaceholder || derived.cluesRead) return derived;
-    const next = { ...derived, cluesRead: true };
+    if (derived.cloudPlaceholder || derived.cluesRead === CLUES_VERSION) return derived;
+    const next = { ...derived, cluesRead: CLUES_VERSION };
     if (file.ext === 'als' && item.type === 'file') {
         next.project = readAbleton(item.path);
         next.project = next.project && { ...next.project, savedAtMs: item.mtimeMs };
@@ -69,14 +71,21 @@ function readFileClues(file, item, derived) {
 
 async function readClues(entries, { onProgress = () => {} } = {}) {
     let read = 0;
+    let opened = 0;
+    let started = Date.now();
+    const timings = {};
     for (const entry of entries) {
+        const before = entry.derived;
         entry.derived = readFileClues(entry.file, entry.item, entry.derived);
+        if (entry.derived !== before) opened += 1;
         if (entry.derived.project) entry.file.project = entry.derived.project;
         if (entry.derived.durationMs) entry.file.durationMs = entry.derived.durationMs;
         read += 1;
         if (read % 250 === 0) onProgress(read);
     }
 
+    timings.readFilesMs = Date.now() - started;
+    started = Date.now();
     const local = entries.filter((entry) => !entry.derived.cloudPlaceholder);
     const audio = local.filter((entry) => ['bounces', 'stems'].includes(entry.file.type)).map((entry) => entry.file);
     const projects = local.filter((entry) => entry.derived.project).map((entry) => ({ fileId: entry.file.fileId, ...entry.derived.project }));
@@ -88,13 +97,16 @@ async function readClues(entries, { onProgress = () => {} } = {}) {
     links.push(...sharedSampleLinks(projects.filter((project) => project.samples && project.samples.length)));
     links.push(...timingLinks(projects.map((project) => ({ ...project, lengthSec: project.lengthSec })), audio.filter((member) => member.type === 'bounces').map((member) => ({ fileId: member.fileId, mtimeMs: Date.parse(member.modifiedAt), durationMs: member.durationMs }))));
 
+    timings.linksMs = Date.now() - started;
+    started = Date.now();
     for (const entry of local) if (entry.derived.sha256) entry.file.sha256 = entry.derived.sha256;
-    const { duplicates } = await findDuplicates(audio);
+    const { duplicates, hashed, checked } = await findDuplicates(audio);
+    timings.duplicatesMs = Date.now() - started;
     for (const entry of local) if (entry.file.sha256) entry.derived = { ...entry.derived, sha256: entry.file.sha256 };
     for (const duplicate of duplicates) {
         for (const copy of duplicate.copies) links.push({ clue: 'duplicate', fileIds: [duplicate.keepFileId, copy], weight: 0.99, text: 'The same audio, byte for byte, under another name or folder.' });
     }
-    return { links, duplicates, projectsRead: projects.length };
+    return { links, duplicates, projectsRead: projects.length, timings, counts: { filesOpened: opened, filesNotOpened: entries.length - opened, sameSizeFilesChecked: checked, filesHashedInFull: hashed } };
 }
 
 module.exports = { readClues };

@@ -53,6 +53,8 @@ function buildResults({ view, labels, app }) {
             cloudPlaceholders: view.notes.placeholdersFound,
             reusedFromLastScan: view.notes.reusedFromStore,
             projectsRead: view.notes.projectsRead,
+            timings: view.notes.timings || {},
+            clueCounts: view.notes.clueCounts || {},
             engineVersion: view.engineVersion,
             policyVersion: view.policyVersion
         },
@@ -72,8 +74,16 @@ function buildResults({ view, labels, app }) {
             keepPrefixes: view.baselines.preserve.stats,
             stripPrefixes: view.baselines.strip.stats
         },
-        marks: labels.marks
+        marks: labels.marks,
+        check: checkSummary(labels.marks, view.scanId)
     };
+}
+
+// Answers from "Check 30 songs" on this scan: the random sample gives an unbiased accuracy figure.
+function checkSummary(marks, scanId) {
+    const answers = marks.filter((mark) => mark.check && mark.scanId === scanId);
+    const count = (kind) => answers.filter((mark) => mark.kind === kind).length;
+    return { answered: answers.length, right: count('right'), wrong: count('wrong-song'), split: count('split'), merge: count('merge') };
 }
 
 function exportFileName(date = new Date()) {

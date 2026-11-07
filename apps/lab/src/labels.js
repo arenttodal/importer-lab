@@ -7,7 +7,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
-const KINDS = new Set(['wrong-song', 'split', 'merge']);
+// 'right' is the answer "Right" in the 30-song check: the song is correct as shown.
+const KINDS = new Set(['wrong-song', 'split', 'merge', 'right']);
 
 function catalogId(rootPaths) {
     return crypto.createHash('sha256').update([...rootPaths].sort().join('\u0000')).digest('hex').slice(0, 12);
@@ -44,6 +45,10 @@ function cleanMark(input, context) {
         fileName: input.target === 'file' ? text(input.fileName) : null,
         fileType: input.target === 'file' ? text(input.fileType) : null,
         mergeWithSongName: input.kind === 'merge' ? text(input.mergeWithSongName) : null,
+        // Answers from "Check 30 songs" (a random sample) are flagged, with the song's band and kind.
+        check: input.check === true,
+        songBand: input.check === true ? text(input.songBand) : null,
+        songKind: input.check === true ? text(input.songKind) : null,
         scanId: context.scanId,
         engineVersion: context.engineVersion
     };

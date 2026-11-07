@@ -9,15 +9,17 @@ const $ = (id) => document.getElementById(id);
 
 const state = { folders: [], view: null, marks: [], song: null, settings: { showLabTools: false, scanOptions: {} }, liveSongs: [], showAllLive: false, scanning: false, showOtherKinds: false };
 
-const KIND_LABEL = { template: 'Template', course: 'Course', 'sample-pack': 'Sample pack', 'stem-set': 'Stems only' };
+const KIND_LABEL = { template: 'Template', course: 'Course', 'sample-pack': 'Sample pack', 'stem-set': 'Stems only', 'loose-stems': 'Loose stems' };
 const BAND_LABEL = { unsure: 'Check', unclear: 'Unclear' };
 
 const TYPE_LABEL = { bounces: 'Bounce', stems: 'Stem', projects: 'Project', videos: 'Video', unknown: 'Other' };
 const MARK_LABEL = {
     'wrong-song': { song: 'Not a real song', file: 'In the wrong song' },
     split: { song: 'Should be split' },
-    merge: { song: 'Should be merged' }
+    merge: { song: 'Should be merged' },
+    right: { song: 'Right' }
 };
+const CHECK_SIZE = 30;
 const LIVE_SONGS_SHOWN = 20;
 
 function escapeHtml(value) {
@@ -56,12 +58,14 @@ function leaveScan() {
 
 function goBack() {
     leaveScan();
+    state.check = null;
     const previous = nav.stack.pop() || 'welcome';
     if (previous === 'welcome') renderHistory();
     show(previous);
 }
 
 async function goHome() {
+    state.check = null;
     leaveScan();
     nav.stack = [];
     const scans = await renderHistory();
@@ -291,16 +295,18 @@ function renderCatalog() {
     const songs = view.songs.filter((song) => song.kind === 'song');
     const check = songs.filter((song) => song.band !== 'sure').sort((a, b) => (a.band === b.band ? Number(b.precheck) - Number(a.precheck) || byName(a, b) : a.band === 'unsure' ? -1 : 1));
     const sure = songs.filter((song) => song.band === 'sure').sort(byName);
-    const others = view.songs.filter((song) => song.kind !== 'song').sort((a, b) => a.kind.localeCompare(b.kind) || byName(a, b));
+    const loose = view.songs.filter((song) => song.kind === 'loose-stems');
+    const others = view.songs.filter((song) => song.kind !== 'song' && song.kind !== 'loose-stems').sort((a, b) => a.kind.localeCompare(b.kind) || byName(a, b));
     const where = view.roots.map((root) => root.name).join(', ');
     $('catalogCount').textContent = `${songs.length.toLocaleString()} songs from ${view.stats.files.toLocaleString()} files in ${where}.`;
-    $('catalogRows').innerHTML = groupRows('Check these first', check) + groupRows('Songs', sure) + (state.showOtherKinds ? groupRows('Not counted as songs', others) : '');
+    $('catalogRows').innerHTML = groupRows('Check these first', [...loose, ...check]) + groupRows('Songs', sure) + (state.showOtherKinds ? groupRows('Not counted as songs', others) : '');
     const kindCounts = {};
     for (const song of others) kindCounts[song.kind] = (kindCounts[song.kind] || 0) + 1;
     const summary = Object.entries(kindCounts).map(([kind, count]) => `${count} ${KIND_LABEL[kind].toLowerCase()}${count === 1 ? '' : 's'}`).join(', ');
     $('toggleOtherKinds').hidden = others.length === 0;
     $('toggleOtherKinds').textContent = state.showOtherKinds ? 'Hide templates, course material, sample packs and stem sets' : `Show what is not counted as songs (${summary})`;
     $('otherFiles').textContent = view.otherFiles ? `${view.otherFiles.toLocaleString()} other files (documents, images and so on) were left out.` : '';
+    renderCourseSuggestions(view);
     const unreadable = view.notes.unreadableFolders;
     $('unreadableAlert').hidden = unreadable === 0;
     $('unreadableText').textContent = `${unreadable} folder${unreadable === 1 ? ' was' : 's were'} not readable, probably because access was not allowed.`;
@@ -328,6 +334,9 @@ function formatLength(seconds) {
 
 function renderSong() {
     const song = state.song;
+    const checking = Boolean(state.check && state.check.keys[state.check.index] === song.key);
+    $('checkBar').hidden = !checking;
+    if (checking) $('checkProgress').textContent = `Song ${state.check.index + 1} of ${state.check.keys.length}`;
     const filesById = new Map(state.view.files.map((file) => [file.fileId, file]));
     const facts = [song.facts.bpm ? `${song.facts.bpm} BPM` : null, song.facts.lengthSec ? formatLength(song.facts.lengthSec) : null].filter(Boolean).join(' · ');
     const band = song.kind !== 'song' ? KIND_LABEL[song.kind] : { sure: 'Sure', unsure: 'Check this', unclear: 'Unclear' }[song.band];
@@ -384,7 +393,7 @@ async function saveMark(input) {
     const mark = await api.addMark(input);
     state.marks.push(mark);
     refreshAfterMark();
-    window.showToast?.('Saved. Thank you — this goes in the results you send.', 'success');
+    if (!input.check) window.showToast?.('Saved. Thank you — this goes in the results you send.', 'success');
     return mark;
 }
 
@@ -418,7 +427,7 @@ function fileMenu(anchor, file) {
     ]);
 }
 
-function openMergePicker(song, mark) {
+function openMergePicker(song, mark, afterSave = null) {
     let chosen = null;
     const body = document.createElement('div');
     body.className = 'lab-picker';
@@ -446,6 +455,7 @@ function openMergePicker(song, mark) {
                 Object.assign(state.marks.find((candidate) => candidate.id === mark.id), updated);
                 refreshAfterMark();
                 modal.close();
+                if (afterSave) afterSave();
             }
         }
     });
@@ -565,6 +575,7 @@ function renderLab() {
             ['Cloud placeholders (never opened)', view.notes.placeholdersFound],
             ['Reused from the last scan', view.notes.reusedFromStore],
             ['Scan time', `${(view.stats.durationMs / 1000).toFixed(2)} s`],
+            ...timingRows(view.notes.timings || {}, view.notes.clueCounts || {}),
             ['AI cost', `$${view.stats.aiCostUsd.toFixed(2)}`],
             ['Engine / name and scoring policy', `${view.engineVersion} / ${view.policyVersion}`],
             ['Contract', view.contractVersion],
@@ -575,6 +586,98 @@ function renderLab() {
         $('metricsRows').innerHTML = rows.map(([key, value]) => `<tr><td class="lab-muted">${escapeHtml(key)}</td><td>${escapeHtml(value)}</td></tr>`).join('');
     });
     $('logText').textContent = [...view.notes.baselineLog, '', JSON.stringify({ typeCounts: view.notes.typeCounts, stats: view.stats }, null, 2)].join('\n');
+}
+
+const TIMING_LABEL = {
+    crawlMs: 'Time: reading folders',
+    storeLookupMs: 'Time: looking up the last scan (part of reading folders)',
+    previewGroupingMs: 'Time: live song list while scanning',
+    placeholdersMs: 'Time: checking cloud placeholders',
+    readFilesMs: 'Time: reading projects and audio headers',
+    linksMs: 'Time: export batches, samples, timing',
+    duplicatesMs: 'Time: identical-audio check',
+    baselineMs: "Time: today's importer (both modes)",
+    groupingMs: 'Time: new engine grouping',
+    storeSaveMs: 'Time: saving the scan',
+    totalMs: 'Time: total'
+};
+
+function timingRows(timings, counts) {
+    const seconds = (ms) => `${(ms / 1000).toFixed(2)} s`;
+    const rows = Object.keys(TIMING_LABEL)
+        .filter((key) => typeof timings[key] === 'number')
+        .map((key) => [TIMING_LABEL[key], seconds(timings[key])]);
+    if (typeof counts.filesOpened === 'number') {
+        rows.push(['Files opened for clues / not opened (stored from the last scan, or in the cloud)', `${counts.filesOpened} / ${counts.filesNotOpened}`]);
+        rows.push(['Same-size files: edge-checked / hashed in full', `${counts.sameSizeFilesChecked} / ${counts.filesHashedInFull}`]);
+    }
+    return rows;
+}
+
+// Course and series prefixes the engine found: confirmed ones become course material on the next
+// scan; declined ones are never asked again. The manual setting (Lab options) stays an override.
+function renderCourseSuggestions(view) {
+    const found = (view.notes.courseSuggestions || []).filter((entry) => !(state.settings.scanOptions.declinedCoursePrefixes || []).includes(entry.prefix) && !(state.settings.scanOptions.courseNamespaces || []).includes(entry.prefix));
+    $('courseAlert').hidden = found.length === 0;
+    if (!found.length) return;
+    const shown = (prefix) => prefix.replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
+    $('courseList').textContent = found.map((entry) => shown(entry.prefix)).join(', ');
+    $('courseDetail').textContent = `${found.reduce((sum, entry) => sum + entry.files, 0)} files would move out of your songs.`;
+}
+
+function courseSuggestionPrefixes() {
+    return (state.view?.notes.courseSuggestions || []).map((entry) => entry.prefix);
+}
+
+// ── "Check 30 songs": a random sample, one song at a time, answered with one click ──
+
+function randomSample(items, size) {
+    const pool = [...items];
+    const random = new Uint32Array(pool.length);
+    crypto.getRandomValues(random);
+    for (let index = pool.length - 1; index > 0; index -= 1) {
+        const other = random[index] % (index + 1);
+        [pool[index], pool[other]] = [pool[other], pool[index]];
+    }
+    return pool.slice(0, size);
+}
+
+function startCheck() {
+    const songs = state.view.songs.filter((song) => song.kind === 'song');
+    state.check = { scanId: state.view.scanId, keys: randomSample(songs, CHECK_SIZE).map((song) => song.key), index: 0, answers: {} };
+    showCheckSong();
+}
+
+function showCheckSong() {
+    const key = state.check.keys[state.check.index];
+    state.song = state.view.songs.find((song) => song.key === key);
+    if (nav.current === 'song') {
+        renderSong();
+        document.querySelector('.lab-main').scrollTop = 0;
+    } else {
+        renderSong();
+        navigate('song');
+    }
+}
+
+function nextCheckSong() {
+    state.check.index += 1;
+    if (state.check.index < state.check.keys.length) return showCheckSong();
+    const answers = Object.values(state.check.answers);
+    const count = (kind) => answers.filter((answer) => answer === kind).length;
+    $('checkSummary').textContent = `You checked ${answers.length} of ${state.check.keys.length} songs: ${count('right')} right, ${count('wrong-song')} wrong, ${count('split')} to split, ${count('merge')} to merge. Your answers are saved and go in the results you send.`;
+    state.check = null;
+    navigate('checkDone');
+}
+
+async function answerCheck(kind) {
+    const song = state.song;
+    if (kind !== 'skip') {
+        const mark = await saveMark({ kind, target: 'song', songName: song.name, check: true, songBand: song.band, songKind: song.kind });
+        state.check.answers[song.key] = kind;
+        if (kind === 'merge') return openMergePicker(song, mark, nextCheckSong);
+    }
+    nextCheckSong();
 }
 
 // ── Wiring ──
@@ -625,6 +728,16 @@ $('permissionContinue').addEventListener('click', async () => {
 $('cancelScan').addEventListener('click', () => api.cancelScan());
 $('seeCatalog').addEventListener('click', () => navigate('catalog'));
 $('rescan').addEventListener('click', newScan);
+$('checkStart').addEventListener('click', startCheck);
+$('checkBar').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-check]');
+    if (button && state.check) answerCheck(button.dataset.check);
+});
+$('checkExport').addEventListener('click', () => $('exportResults').click());
+$('checkToCatalog').addEventListener('click', () => {
+    nav.stack = ['welcome'];
+    show('catalog');
+});
 $('exportResults').addEventListener('click', exportResults);
 $('openPrivacy').addEventListener('click', () => api.openPrivacySettings());
 $('toggleOtherKinds').addEventListener('click', () => {
@@ -632,6 +745,17 @@ $('toggleOtherKinds').addEventListener('click', () => {
     renderCatalog();
 });
 $('groupEdits').addEventListener('change', async (event) => applySettings(await api.setSetting('groupEdits', event.target.checked)));
+$('courseConfirm').addEventListener('click', async () => {
+    const merged = [...new Set([...(state.settings.scanOptions.courseNamespaces || []), ...courseSuggestionPrefixes()])];
+    applySettings(await api.setSetting('courseNamespaces', merged.join(', ')));
+    $('courseAlert').hidden = true;
+    startScan();
+});
+$('courseDecline').addEventListener('click', async () => {
+    const declined = [...new Set([...(state.settings.scanOptions.declinedCoursePrefixes || []), ...courseSuggestionPrefixes()])];
+    applySettings(await api.setSetting('declinedCoursePrefixes', declined));
+    $('courseAlert').hidden = true;
+});
 $('courseNamespaces').addEventListener('change', async (event) => applySettings(await api.setSetting('courseNamespaces', event.target.value)));
 $('loadExistingSongs').addEventListener('click', async () => {
     $('existingSongsError').hidden = true;

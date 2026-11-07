@@ -1,5 +1,5 @@
 {
-    "version": "lab-names-1",
+    "version": "lab-names-2",
     "about": "Name policy for the Importer Lab engine. Works on the main app's preClean() output. Words listed here are set aside from the song identity and kept as version labels or stem parts. Changing anything here means a new version string.",
     "formatWords": [
         "wav",
@@ -400,6 +400,57 @@
             "single",
             "double"
         ],
-        "samplePackFamilyMin": 5
+        "samplePackFamilyMin": 5,
+        "oneShotWords": [
+            "kick",
+            "kicks",
+            "clap",
+            "claps",
+            "snare",
+            "snares",
+            "hat",
+            "hats",
+            "hihat",
+            "hihats",
+            "sfx",
+            "fx",
+            "perc",
+            "percs",
+            "percussion",
+            "bass",
+            "basses",
+            "kit",
+            "kits",
+            "drumkit",
+            "drumkits",
+            "hit",
+            "hits",
+            "oneshot",
+            "oneshots"
+        ],
+        "packFolderMinFiles": 4,
+        "oneShotMaxWords": 3,
+        "courseSignalWords": [
+            "tutorial",
+            "tutorials",
+            "lesson",
+            "lessons",
+            "module",
+            "modules",
+            "course",
+            "courses",
+            "class",
+            "masterclass",
+            "chapter",
+            "lecture",
+            "lectures",
+            "episode",
+            "walkthrough",
+            "explainer",
+            "taster",
+            "vo",
+            "webinar",
+            "workshop"
+        ]
     }
 }

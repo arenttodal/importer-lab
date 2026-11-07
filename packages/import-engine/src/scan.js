@@ -16,7 +16,7 @@ const { readClues } = require('./read-clues');
 const { POLICY_VERSION: NAME_POLICY_VERSION } = require('./names');
 const scoring = require('../policy/scoring-v1.json');
 
-const ENGINE_VERSION = '0.2.0-m2';
+const ENGINE_VERSION = '0.2.1-m2';
 const POLICY_VERSION = `${NAME_POLICY_VERSION}+${scoring.version}`;
 const PROGRESS_EVERY = 250;
 // While crawling, the engine groups the files found so far, so songs appear as they are found.
@@ -80,6 +80,7 @@ function groupingOptions(request, links = []) {
         mergeRule: options.mergeRule,
         groupEdits: options.groupEdits !== false,
         courseNamespaces: options.catalogRules?.courseNamespaces || [],
+        declinedCoursePrefixes: options.catalogRules?.declinedCoursePrefixes || [],
         links
     };
 }
@@ -100,9 +101,26 @@ async function scanCatalog(request, hooks = {}) {
     const previewSongs = new Set();
     let nextPreviewAt = PREVIEW_MIN_FILES;
     let reused = 0;
+    // Time per step (ms), reported in Metrics and the results file.
+    const timings = { crawlMs: 0, previewGroupingMs: 0, placeholdersMs: 0, readFilesMs: 0, linksMs: 0, duplicatesMs: 0, baselineMs: 0, groupingMs: 0 };
+    let stepStart = Date.now();
+    const endStep = (step) => {
+        timings[step] += Date.now() - stepStart;
+        stepStart = Date.now();
+    };
 
     // Song names the engine finds in the files so far (names only); only new names are reported.
     function preview() {
+        const previewStart = Date.now();
+        try {
+            return previewNames();
+        } finally {
+            timings.previewGroupingMs += Date.now() - previewStart;
+            stepStart += Date.now() - previewStart;
+        }
+    }
+
+    function previewNames() {
         const files = entries.map(({ item, classification }) => toProposedFile(item, classification, false)).filter((file) => file.type !== 'unknown');
         const names = groupCatalog(files, groupingOptions(request)).songs.filter((song) => song.kind === 'song').map((song) => song.songName);
         const newSongs = names.filter((name) => !previewSongs.has(name));
@@ -129,6 +147,7 @@ async function scanCatalog(request, hooks = {}) {
         }
     }
     if (isCancelled()) return { cancelled: true };
+    endStep('crawlMs');
 
     progress('placeholders', { newSongs: preview() });
     const unchecked = entries.filter(({ item }) => !item.stored && item.type === 'file' && isPlaceholderCandidate(item)).map(({ item }) => item.path);
@@ -145,12 +164,15 @@ async function scanCatalog(request, hooks = {}) {
         kept.push({ item, file, derived, included: !(derived.cloudPlaceholder && !includePlaceholders) });
     }
     if (isCancelled()) return { cancelled: true };
+    endStep('placeholdersMs');
 
     progress('clues');
     const included = kept.filter((entry) => entry.included);
     const grouped = included.filter((entry) => entry.file.type !== 'unknown');
     const clues = await readClues(grouped, { onProgress: (read) => progress('clues', { projectsRead: read }) });
     if (isCancelled()) return { cancelled: true };
+    Object.assign(timings, clues.timings);
+    stepStart = Date.now();
 
     progress('baseline');
     const files = included.map((entry) => entry.file);
@@ -158,9 +180,12 @@ async function scanCatalog(request, hooks = {}) {
     const baseline = runBaseline(files, { preserveSourceIdentity: true, existingGroups });
     const baselineStripPrefixes = runBaseline(files, { preserveSourceIdentity: false, existingGroups });
 
+    endStep('baselineMs');
+
     progress('grouping');
     const engine = groupCatalog(files.filter((file) => file.type !== 'unknown'), { ...groupingOptions(request, clues.links), existingSongs: existingGroups });
     for (const song of engine.songs) song.facts = songFacts(song);
+    endStep('groupingMs');
     const realSongs = engine.songs.filter((song) => song.kind === 'song');
     const groupedFiles = realSongs.reduce((sum, song) => sum + song.files.length, 0);
     const sureFiles = realSongs.filter((song) => song.band === 'sure').reduce((sum, song) => sum + song.files.length, 0);
@@ -172,6 +197,7 @@ async function scanCatalog(request, hooks = {}) {
         policyVersion: POLICY_VERSION,
         songs: engine.songs,
         unassigned: files.filter((file) => file.type === 'unknown'),
+        looseStems: engine.looseStems,
         duplicates: clues.duplicates,
         baseline: withoutLog(baseline),
         baselineStripPrefixes: withoutLog(baselineStripPrefixes),
@@ -199,7 +225,10 @@ async function scanCatalog(request, hooks = {}) {
             reusedFromStore: reused,
             projectsRead: clues.projectsRead,
             links: clues.links.length,
+            timings,
+            clueCounts: clues.counts,
             learned: engine.context,
+            courseSuggestions: engine.context.courseSuggestions || [],
             baselineLog: baseline.log
         },
         records: kept.map(({ item, derived }) => ({ item, derived }))

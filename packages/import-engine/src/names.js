@@ -290,7 +290,7 @@ function analyseName(file, ctx, options = {}) {
         dateKeyed,
         weak: isWeakTitle(title),
         // Bare numbers set aside (take or tempo): they only join a song whose plain title also exists.
-        bareNumber: removed.filter((step) => step.rule === 'version' && step.words.split(' ').every(isNumber)).map((step) => step.words).join(' '),
+        bareNumber: removed.filter((step) => step.rule === 'version' && step.words.split(' ').every(isNumber)).map((step) => step.words).reverse().join(' '),
         removed
     };
 }

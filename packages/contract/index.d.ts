@@ -35,7 +35,7 @@ export interface ExistingSong {
 }
 
 export interface ProposedCatalog {
-  contractVersion: "1.0.0" | "1.1.0";
+  contractVersion: "1.0.0" | "1.1.0" | "1.2.0";
   engineVersion: string;
   policyVersion: string;
   songs: ProposedSong[];
@@ -43,7 +43,13 @@ export interface ProposedCatalog {
   duplicates: DuplicateSet[];
   baseline: BaselineResult; // today's importer, preserveSourceIdentity: true (the engine's target)
   baselineStripPrefixes?: BaselineResult; // 1.1.0 — today's importer, preserveSourceIdentity: false
+  looseStems?: LooseStem[]; // 1.2.0 — single stems with no song by name, folder or export batch
   stats: ScanStats;
+}
+
+// 1.2.0 — a stem that belongs to no song: shown once, in review, never as a song of its own.
+export interface LooseStem extends ProposedFile {
+  reason: string;
 }
 
 // 1.1.0 — what a proposed item is; only "song" counts as a song.
@@ -60,6 +66,7 @@ export interface PossibleMatch {
   proposalId: string;
   songName: string;
   reason: string;
+  weight?: number; // 1.2.0 — strength of the clue, 0..1; songs keep their 3 strongest
 }
 
 export interface ProposedSong {

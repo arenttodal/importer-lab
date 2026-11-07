@@ -2,7 +2,8 @@
 
 // Ableton Live set reader (.als = gzipped XML): tempo, track names, sample references and the
 // arrangement length (the furthest clip end). Reads one file the caller has checked is not a
-// cloud placeholder. Sample paths are reduced to file names: full paths never leave this module.
+// cloud placeholder. Sample paths are reduced to file names (plus the stored size): full paths never
+// leave this module.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -31,7 +32,12 @@ function readAbleton(filePath) {
     const samples = new Set();
     for (const ref of xml.matchAll(/<FileRef>([\s\S]*?)<\/FileRef>/g)) {
         const full = ref[1].match(/<Path Value="([^"]+)"/)?.[1] || ref[1].match(/<RelativePath Value="([^"]+)"/)?.[1];
-        if (full) samples.add(path.basename(decodeXmlText(full).replace(/\\/g, '/')).toLowerCase());
+        if (!full) continue;
+        // Name plus the size Ableton stored: recordings called "1-Audio 0001.wav" in two projects
+        // are different sounds unless their sizes match too.
+        const size = ref[1].match(/<OriginalFileSize Value="(\d+)"/)?.[1];
+        const name = path.basename(decodeXmlText(full).replace(/\\/g, '/')).toLowerCase();
+        samples.add(size ? `${name}|${size}` : name);
     }
     const ends = [...xml.matchAll(/<CurrentEnd Value="([\d.]+)"/g)].map((match) => Number(match[1]));
     const lengthBeats = ends.length ? Math.max(...ends) : null;

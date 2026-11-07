@@ -14,15 +14,15 @@ function unionMembers(source, pattern) {
     return [...match[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
 }
 
-test('contract version is 1.1.0 in code, types and package.json; 1.0.0 catalogs stay valid', () => {
-    assert.equal(CONTRACT_VERSION, '1.1.0');
-    assert.match(types, /contractVersion: "1\.0\.0" \| "1\.1\.0"/);
-    assert.equal(require('../package.json').version, '1.1.0');
+test('contract version is 1.2.0 in code, types and package.json; 1.0.0 and 1.1.0 catalogs stay valid', () => {
+    assert.equal(CONTRACT_VERSION, '1.2.0');
+    assert.match(types, /contractVersion: "1\.0\.0" \| "1\.1\.0" \| "1\.2\.0"/);
+    assert.equal(require('../package.json').version, '1.2.0');
 });
 
-test('1.1.0 only adds optional fields', () => {
-    const added = types.split('\n').filter((line) => line.includes('// 1.1.0') && /^\s+\w+\??:/.test(line));
-    assert.ok(added.length >= 8);
+test('1.1.0 and 1.2.0 only add optional fields', () => {
+    const added = types.split('\n').filter((line) => /\/\/ 1\.[12]\.0/.test(line) && /^\s+\w+\??:/.test(line));
+    assert.ok(added.length >= 10);
     for (const line of added) assert.match(line, /^\s+\w+\?:/, `not optional: ${line.trim()}`);
 });
 
