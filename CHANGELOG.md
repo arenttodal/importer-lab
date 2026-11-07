@@ -1,9 +1,12 @@
 # Changelog
 
-## 0.2.0-dev.5 — 2026-11-07 (fixes after the first real M2 scan)
+## 0.2.0-dev.6 — 2026-11-07 (fixes after the first real M2 scan)
+
+Build dev.5 stopped in CI (the workspace still asked for contract 1.1.0); dev.6 is the same code with
+that fixed.
 
 Measured on the dev.4 results from a real catalog (replay with folders, dates and sizes; no project
-contents), dev.4 engine → dev.5 engine:
+contents), dev.4 engine → dev.6 engine:
 
 | Fix | Before → after |
 | --- | --- |

@@ -3,7 +3,7 @@
 Newest first. Each entry: what was decided, why, and what would change it. Conflicts between the spec
 and the brief are in `docs/CONFLICTS.md`; this log records how the build resolved them.
 
-## 2026-11-07 — dev.5: fixes after the first real M2 scan
+## 2026-11-07 — 0.2.0-dev.6: fixes after the first real M2 scan
 
 **D44. Numbers contained in numbers.** Numbered files in different folders without the plain title
 join when one file's numbers contain the other's ("80" in "80 1"); otherwise they stay apart (D35).
