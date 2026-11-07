@@ -22,7 +22,7 @@ open it. `scripts/after-pack.js` runs `codesign --sign -` on the merged universa
 the normal "Open Anyway" path. Developer ID signing and notarisation are wired in the workflow behind
 the repository variable `MAC_SIGNING=on` and five secrets; they are never read while it is off.
 
-**D22. One credential slot for the private submodule, two kinds.** `scripts/ci/checkout-submodule.sh`
+**D22. One credential slot for the private submodule, two kinds.** Only the pinned commit is fetched (`--depth 1`, about 140 MB instead of more than 1 GB of history; full clone as fallback), and git never prompts for a password, so a bad credential fails the step instead of hanging it. `scripts/ci/checkout-submodule.sh`
 uses `THE_LIBRARY_DEPLOY_KEY` (SSH, read-only) when present, otherwise `THE_LIBRARY_TOKEN` (HTTPS),
 rewriting the submodule URL only for that one command. Switching to a deploy key = adding one secret.
 Nothing names the repository owner; the release step uses the workflow's own repository context.

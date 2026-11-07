@@ -36,6 +36,7 @@ jobs:
           persist-credentials: false
 
       - name: Check out the main app (private submodule, pinned commit)
+        timeout-minutes: 15
         env:
           THE_LIBRARY_DEPLOY_KEY: ${{ secrets.THE_LIBRARY_DEPLOY_KEY }}
           THE_LIBRARY_TOKEN: ${{ secrets.THE_LIBRARY_TOKEN }}
