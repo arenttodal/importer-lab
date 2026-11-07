@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.1 — 2026-11-07 (navigation)
+
+- Back on every step, Home and New scan in the header after the welcome screen.
+- File menu: New Scan (⌘N) and Open Previous Results… (⌘O).
+- Previous scans on the home screen (date, folders, songs, files) with Open and Delete.
+- Scan screen shows the 20 newest songs with "See all".
+- Starting a new scan while one runs replaces it cleanly.
+
 ## 0.1.0 — 2026-11-07 (packaging and the producer flow)
 
 ### Packaging

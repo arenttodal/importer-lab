@@ -75,7 +75,7 @@ async function main() {
     await page.click('.std-menu .std-menu-item');
     await settle(page, 600);
     await snap('song-marked');
-    await page.click('#songBack');
+    await page.click('#navBack');
     await page.click('#exportResults');
     await settle(page, 600);
     await snap('send-results');
@@ -93,6 +93,48 @@ async function main() {
         await settle(page);
         await snap(`lab-${section}`);
     }
+
+
+    // Navigation: Home, previous scans, New scan, Back, See all, delete, File menu.
+    const clickMenu = (label) =>
+        app.evaluate(({ Menu }, itemLabel) => {
+            const file = Menu.getApplicationMenu().items.find((item) => item.label === 'File');
+            file.submenu.items.find((item) => item.label === itemLabel).click();
+        }, label);
+    await page.click('#navHome');
+    await page.waitForSelector('#scanHistoryList [data-open-scan]');
+    await settle(page);
+    await snap('home-previous-scans');
+    await page.click('#welcomeStart');
+    await page.waitForSelector('[data-screen="folders"]:not([hidden])');
+    await page.uncheck('#folderList .lab-folder-row:has-text("Desktop") input');
+    await settle(page);
+    await snap('new-scan-with-back');
+    await page.click('#foldersContinue');
+    await page.waitForSelector('#seeCatalog:not([hidden])', { timeout: 120000 });
+    await settle(page);
+    await snap('scan-done-first-20');
+    await page.click('#navBack');
+    await page.waitForSelector('[data-screen="folders"]:not([hidden])');
+    await clickMenu('Open Previous Results…');
+    await page.waitForSelector('[data-screen="welcome"]:not([hidden]) #scanHistoryList [data-open-scan]');
+    const rows = await page.locator('#scanHistoryList [data-open-scan]').count();
+    await page.locator('#scanHistoryList [data-open-scan]').nth(1).click();
+    await page.waitForSelector('[data-screen="catalog"]:not([hidden])');
+    await settle(page);
+    await snap('reopened-previous-scan');
+    await page.click('#navBack');
+    await page.locator('#scanHistoryList [data-delete-scan]').nth(1).click();
+    await page.waitForSelector('.std-modal');
+    await settle(page);
+    await snap('delete-confirm');
+    await page.click('.std-modal .std-modal-btn--destructive');
+    await settle(page);
+    const rowsAfterDelete = await page.locator('#scanHistoryList [data-open-scan]').count();
+    await clickMenu('New Scan');
+    await page.waitForSelector('[data-screen="folders"]:not([hidden])');
+    const fileMenuNewScan = await page.isVisible('#navBack');
+    console.log(JSON.stringify({ historyRows: rows, rowsAfterDelete, fileMenuNewScanShowsFoldersWithBack: fileMenuNewScan }));
 
     const exportDir = path.join(home, '.config', 'Importer Lab', 'lab-data', 'exports');
     const exported = fs.readdirSync(exportDir);

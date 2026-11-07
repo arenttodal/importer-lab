@@ -24,11 +24,14 @@
     </head>
     <body class="tracks-page lab-page text-dark-text font-sans">
         <header class="lab-header">
+            <button id="navBack" class="std-inline-btn" type="button" hidden>← Back</button>
             <div class="lab-title">
                 <span class="lab-brand">Importer Lab</span>
                 <span class="std-chip"><span class="std-status-dot std-status-dot--sm lab-dot-safe"></span>Read-only</span>
             </div>
             <div class="lab-header-actions">
+                <button id="navHome" class="std-modal-btn std-modal-btn--ghost" type="button" hidden>Home</button>
+                <button id="navNewScan" class="std-modal-btn std-modal-btn--secondary" type="button" hidden>New scan</button>
                 <button id="openLab" class="std-modal-btn std-modal-btn--ghost" type="button" hidden>Lab</button>
                 <button id="openSettings" class="std-icon-btn" type="button" aria-label="Settings" title="Settings">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -40,12 +43,16 @@
         </header>
 
         <main class="lab-main">
-            <!-- Welcome -->
+            <!-- Welcome / home -->
             <section class="lab-screen lab-screen--center" data-screen="welcome">
                 <div class="lab-hero">
                     <h1 class="lab-hero-title">Turn years of bounces, projects and stems into a list of songs.</h1>
                     <p class="lab-hero-text">Nothing on your computer is changed, moved or uploaded.</p>
                     <button id="welcomeStart" class="std-modal-btn std-modal-btn--primary" type="button">Find my songs</button>
+                    <div id="scanHistory" class="lab-history" hidden>
+                        <div class="std-modal-section-label">Previous scans</div>
+                        <div id="scanHistoryList" class="std-list"></div>
+                    </div>
                 </div>
             </section>
 
@@ -80,7 +87,6 @@
                     </div>
                     <p class="lab-muted">If you click Don't Allow, those folders are skipped and you can allow them later in System Settings.</p>
                     <div class="lab-actions lab-actions--center">
-                        <button id="permissionBack" class="std-modal-btn std-modal-btn--ghost" type="button">Back</button>
                         <button id="permissionContinue" class="std-modal-btn std-modal-btn--primary" type="button">Continue</button>
                     </div>
                 </div>
@@ -89,7 +95,7 @@
             <!-- Scanning -->
             <section class="lab-screen" data-screen="scanning" hidden>
                 <div class="lab-column">
-                    <h1 class="lab-heading">Looking for your songs</h1>
+                    <h1 id="scanHeading" class="lab-heading">Looking for your songs</h1>
                     <p id="scanPhase" class="lab-lede">Reading folders…</p>
                     <div id="scanProgress" class="std-progress std-progress--indeterminate"><div class="std-progress-fill"></div></div>
                     <div class="std-stat-grid lab-stats">
@@ -102,8 +108,11 @@
                         <button id="cancelScan" class="std-modal-btn std-modal-btn--secondary" type="button">Cancel</button>
                         <button id="seeCatalog" class="std-modal-btn std-modal-btn--primary" type="button" hidden>See your songs</button>
                     </div>
-                    <div class="std-modal-section-label">Songs found so far</div>
+                    <div class="std-modal-section-label" id="liveSongsLabel">Songs found so far</div>
                     <div id="liveSongs" class="lab-live-songs"></div>
+                    <div class="lab-actions">
+                        <button id="liveSongsMore" class="std-inline-btn" type="button" hidden>See all</button>
+                    </div>
                 </div>
             </section>
 
@@ -140,7 +149,6 @@
 
             <!-- Song detail -->
             <section class="lab-screen lab-screen--wide" data-screen="song" hidden>
-                <button id="songBack" class="std-inline-btn" type="button">← All songs</button>
                 <div class="lab-catalog-head">
                     <div>
                         <h1 id="songTitle" class="lab-heading"></h1>

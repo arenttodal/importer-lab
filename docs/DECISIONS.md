@@ -3,7 +3,29 @@
 Newest first. Each entry: what was decided, why, and what would change it. Conflicts between the spec
 and the brief are in `docs/CONFLICTS.md`; this log records how the build resolved them.
 
-## 2026-11-07 — Packaging and the producer flow (before M2)
+## 2026-11-07 — Navigation and scan history (after the first real run)
+
+**D29. Navigation.** One Back button in the header on every step (a stack of visited screens; the
+one-off permission note is never returned to), plus Home and New scan on every screen after the
+welcome. Leaving a running scan cancels it; starting a new scan while one runs replaces it (the old
+one finishes cancelling first). File menu: New Scan (⌘N) and Open Previous Results… (⌘O).
+
+**D30. Scan history.** Every finished scan is saved as `scans/<scanId>.json` in the data folder: the
+renderer view (names, relative folders, counts — no absolute paths) and its catalog id. The home
+screen lists them (date, folders, songs, files) with Open and Delete. Delete removes only the saved
+results, after the app's destructive mirror confirmation (Keep + Delete); marks stay in `labels/`.
+
+**D31. Live song list.** The scan screen shows the 20 newest song names and a "See all N" button.
+
+**D32. M2 inputs from the first real run (Arn's catalog, 1,803 files → 1,068 songs today).** Test cases
+recorded for M2: variant suffixes (Cavalry Invisalign …), edits (Cma Intro Short/Long), category
+prefixes applied unevenly (Blooper Idea …), repeated words (Evenant Evenant …), contributor names
+(… Arn …), plural/suffix edits (Pirouette/Pirouettes, Push Jam Monday), must-stay-separate cases
+(Morning 5 <day>, Live Set Risen 2023 vs 2024), and non-song types (templates, tutorials/course
+material). "Project PD" is a backup-copy marker left by Producer Dashboard (the earlier version of The
+Library) when files were moved: treat it as noise, never as a rule or identity.
+
+
 
 **D19. Review answers recorded.** D6 (the mirrored folder rule) stays until patch P1 lands, with its parity
 test. D15 stays: the catalog is the grid's styled markup, no `tracksPage` stand-in. D13 is resolved by

@@ -24,6 +24,9 @@ contextBridge.exposeInMainWorld('labAPI', {
     openPrivacySettings: () => ipcRenderer.invoke('lab:open-privacy-settings'),
 
     startScan: () => ipcRenderer.invoke('lab:start-scan'),
+    listScans: () => ipcRenderer.invoke('lab:list-scans'),
+    openScan: (scanId) => ipcRenderer.invoke('lab:open-scan', scanId),
+    deleteScan: (scanId) => ipcRenderer.invoke('lab:delete-scan', scanId),
     cancelScan: () => ipcRenderer.invoke('lab:cancel-scan'),
     onScanProgress: subscribe('lab:scan-progress'),
     onScanDone: subscribe('lab:scan-done'),
@@ -36,5 +39,7 @@ contextBridge.exposeInMainWorld('labAPI', {
     exportResults: () => ipcRenderer.invoke('lab:export-results'),
 
     onOpenSettings: subscribe('lab:open-settings'),
-    onOpenLab: subscribe('lab:open-lab')
+    onOpenLab: subscribe('lab:open-lab'),
+    onNewScan: subscribe('lab:new-scan'),
+    onOpenPrevious: subscribe('lab:open-previous')
 });

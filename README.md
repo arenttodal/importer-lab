@@ -36,6 +36,10 @@ bands arrive in M2.
 7. **Send results to the team** saves one file (names, counts, marks and timings — no paths, no audio)
    and shows it in Finder, ready to attach to a message.
 
+Getting around: **Back** (top left) on every step, **Home** and **New scan** (top right), and the
+**File** menu: **New Scan** (⌘N) and **Open Previous Results…** (⌘O). The home screen lists previous
+scans with **Open** and **Delete** (deleting removes only the saved results, never music files).
+
 Team tools (compare with today's importer, scan options, metrics, logs) are hidden: turn on
 **Settings → Show Lab tools** (the gear, or ⌘,) and a **Lab** button and menu appear.
 

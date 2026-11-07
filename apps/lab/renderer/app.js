@@ -7,7 +7,7 @@
 const api = window.labAPI;
 const $ = (id) => document.getElementById(id);
 
-const state = { folders: [], view: null, marks: [], song: null, settings: { showLabTools: false, scanOptions: {} }, liveCount: 0 };
+const state = { folders: [], view: null, marks: [], song: null, settings: { showLabTools: false, scanOptions: {} }, liveSongs: [], showAllLive: false, scanning: false };
 
 const TYPE_LABEL = { bounces: 'Bounce', stems: 'Stem', projects: 'Project', videos: 'Video', unknown: 'Other' };
 const MARK_LABEL = {
@@ -15,7 +15,7 @@ const MARK_LABEL = {
     split: { song: 'Should be split' },
     merge: { song: 'Should be merged' }
 };
-const LIVE_SONG_LIMIT = 300;
+const LIVE_SONGS_SHOWN = 20;
 
 function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
@@ -25,9 +25,101 @@ function cleanError(error) {
     return String(error.message || error).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 }
 
-function showScreen(name) {
+// ── Navigation: Back returns to the previous step; Home and New scan are always one click away ──
+
+const nav = { current: 'welcome', stack: [] };
+
+function show(name) {
+    nav.current = name;
     for (const panel of document.querySelectorAll('[data-screen]')) panel.hidden = panel.dataset.screen !== name;
     document.querySelector('.lab-main').scrollTop = 0;
+    const home = name === 'welcome';
+    $('navBack').hidden = nav.stack.length === 0;
+    $('navHome').hidden = home;
+    $('navNewScan').hidden = home;
+}
+
+// The permission note is a one-off step: Back never returns to it.
+function navigate(name) {
+    if (name === nav.current) return;
+    if (nav.current !== 'permission') nav.stack.push(nav.current);
+    show(name);
+}
+
+// Leaving a running scan stops it; nothing has been changed on disk either way.
+function leaveScan() {
+    if (state.scanning) api.cancelScan();
+}
+
+function goBack() {
+    leaveScan();
+    const previous = nav.stack.pop() || 'welcome';
+    if (previous === 'welcome') renderHistory();
+    show(previous);
+}
+
+async function goHome() {
+    leaveScan();
+    nav.stack = [];
+    const scans = await renderHistory();
+    show('welcome');
+    return scans;
+}
+
+async function newScan() {
+    leaveScan();
+    renderFolders(await api.listFolders());
+    nav.stack = ['welcome'];
+    show('folders');
+}
+
+// ── Home: previous scans ──
+
+async function renderHistory() {
+    const scans = await api.listScans();
+    $('scanHistory').hidden = scans.length === 0;
+    $('welcomeStart').textContent = scans.length ? 'New scan' : 'Find my songs';
+    $('scanHistoryList').innerHTML = scans
+        .map((scan) => {
+            const when = new Date(scan.finishedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+            return `<div class="std-list-row lab-history-row">
+                <span class="std-list-label">${escapeHtml(scan.folders.join(', '))}<br /><span class="std-list-meta">${escapeHtml(when)} · ${scan.songs.toLocaleString()} songs from ${scan.files.toLocaleString()} files</span></span>
+                <button class="std-modal-btn std-modal-btn--secondary" type="button" data-open-scan="${escapeHtml(scan.scanId)}">Open</button>
+                <button class="std-inline-btn std-inline-btn--destructive" type="button" data-delete-scan="${escapeHtml(scan.scanId)}">Delete</button>
+            </div>`;
+        })
+        .join('');
+    return scans;
+}
+
+async function openPreviousScan(scanId) {
+    const { view, marks } = await api.openScan(scanId);
+    state.view = view;
+    state.marks = marks;
+    renderCatalog();
+    renderLab();
+    navigate('catalog');
+}
+
+function confirmDeleteScan(scanId) {
+    const body = document.createElement('p');
+    body.className = 'lab-lede';
+    body.textContent = 'This removes the saved results of this scan from the lab. Your music files are not touched. Marks you made stay saved.';
+    const modal = window.createStandardModal({
+        archetype: 'compact',
+        title: 'Delete these results?',
+        body,
+        closeOnBackdrop: false,
+        primaryAction: { label: 'Keep', onClick: () => modal.close() },
+        destructiveAction: {
+            label: 'Delete',
+            onClick: async ({ close }) => {
+                await api.deleteScan(scanId);
+                await renderHistory();
+                close();
+            }
+        }
+    });
 }
 
 // ── Choose where your music lives ──
@@ -50,7 +142,7 @@ function renderFolders(folders) {
 
 async function continueFromFolders() {
     $('foldersError').hidden = true;
-    if (await api.needsPermissionNotice()) return showScreen('permission');
+    if (await api.needsPermissionNotice()) return navigate('permission');
     startScan();
 }
 
@@ -58,8 +150,11 @@ async function continueFromFolders() {
 
 function resetScanScreen() {
     for (const id of ['countBounces', 'countProjects', 'countStems', 'countSongs']) $(id).textContent = '0';
-    $('liveSongs').innerHTML = '';
-    state.liveCount = 0;
+    state.liveSongs = [];
+    state.showAllLive = false;
+    renderLiveSongs();
+    $('scanHeading').textContent = 'Looking for your songs';
+    $('liveSongsLabel').textContent = 'Songs found so far';
     $('scanPhase').textContent = 'Reading folders…';
     $('scanProgress').hidden = false;
     $('cancelScan').hidden = false;
@@ -69,14 +164,15 @@ function resetScanScreen() {
 async function startScan() {
     try {
         await api.startScan();
+        state.scanning = true;
     } catch (error) {
         $('foldersError').textContent = cleanError(error);
         $('foldersError').hidden = false;
-        showScreen('folders');
+        navigate('folders');
         return;
     }
     resetScanScreen();
-    showScreen('scanning');
+    navigate('scanning');
 }
 
 const PHASE_TEXT = {
@@ -86,16 +182,18 @@ const PHASE_TEXT = {
     done: 'Done'
 };
 
+// Newest first; the first 20 unless "See all" was clicked.
+function renderLiveSongs() {
+    const newestFirst = [...state.liveSongs].reverse();
+    const shown = state.showAllLive ? newestFirst : newestFirst.slice(0, LIVE_SONGS_SHOWN);
+    $('liveSongs').innerHTML = shown.map((name) => `<span class="std-chip lab-live-chip">${escapeHtml(name)}</span>`).join('');
+    $('liveSongsMore').textContent = state.showAllLive ? 'Show fewer' : `See all ${newestFirst.length.toLocaleString()}`;
+    $('liveSongsMore').hidden = newestFirst.length <= LIVE_SONGS_SHOWN;
+}
+
 function addLiveSongs(names) {
-    const list = $('liveSongs');
-    for (const name of names) {
-        state.liveCount += 1;
-        if (state.liveCount > LIVE_SONG_LIMIT) continue;
-        const chip = document.createElement('span');
-        chip.className = 'std-chip lab-live-chip';
-        chip.textContent = name;
-        list.prepend(chip);
-    }
+    state.liveSongs.push(...names);
+    renderLiveSongs();
 }
 
 function onProgress(progress) {
@@ -109,6 +207,7 @@ function onProgress(progress) {
 }
 
 function scanEnded(text) {
+    state.scanning = false;
     $('scanProgress').hidden = true;
     $('cancelScan').hidden = true;
     $('scanPhase').textContent = text;
@@ -120,8 +219,11 @@ function onScanDone({ view, marks }) {
     $('countSongs').textContent = view.songs.length.toLocaleString();
     scanEnded(`Found ${view.songs.length.toLocaleString()} songs in ${view.stats.files.toLocaleString()} files (${(view.stats.durationMs / 1000).toFixed(1)} s).`);
     $('seeCatalog').hidden = false;
+    $('scanHeading').textContent = 'Your songs are ready';
+    $('liveSongsLabel').textContent = 'Songs found';
     renderCatalog();
     renderLab();
+    renderHistory();
 }
 
 // ── Your catalog ──
@@ -189,7 +291,7 @@ function openSong(key) {
     if (!song) return;
     state.song = song;
     renderSong();
-    showScreen('song');
+    navigate('song');
 }
 
 function renderSong() {
@@ -395,9 +497,19 @@ function renderLab() {
 
 // ── Wiring ──
 
-$('welcomeStart').addEventListener('click', async () => {
-    renderFolders(await api.listFolders());
-    showScreen('folders');
+$('welcomeStart').addEventListener('click', newScan);
+$('navBack').addEventListener('click', goBack);
+$('navHome').addEventListener('click', goHome);
+$('navNewScan').addEventListener('click', newScan);
+$('liveSongsMore').addEventListener('click', () => {
+    state.showAllLive = !state.showAllLive;
+    renderLiveSongs();
+});
+$('scanHistoryList').addEventListener('click', (event) => {
+    const open = event.target.closest('[data-open-scan]');
+    if (open) return openPreviousScan(open.dataset.openScan);
+    const remove = event.target.closest('[data-delete-scan]');
+    if (remove) confirmDeleteScan(remove.dataset.deleteScan);
 });
 $('folderList').addEventListener('change', async (event) => {
     const box = event.target.closest('[data-folder]');
@@ -424,20 +536,15 @@ dropZone.addEventListener('drop', async (event) => {
 document.addEventListener('dragover', (event) => event.preventDefault());
 document.addEventListener('drop', (event) => event.preventDefault());
 $('foldersContinue').addEventListener('click', continueFromFolders);
-$('permissionBack').addEventListener('click', () => showScreen('folders'));
 $('permissionContinue').addEventListener('click', async () => {
     await api.permissionExplained();
     startScan();
 });
 $('cancelScan').addEventListener('click', () => api.cancelScan());
-$('seeCatalog').addEventListener('click', () => showScreen('catalog'));
-$('rescan').addEventListener('click', async () => {
-    renderFolders(await api.listFolders());
-    showScreen('folders');
-});
+$('seeCatalog').addEventListener('click', () => navigate('catalog'));
+$('rescan').addEventListener('click', newScan);
 $('exportResults').addEventListener('click', exportResults);
 $('openPrivacy').addEventListener('click', () => api.openPrivacySettings());
-$('songBack').addEventListener('click', () => showScreen('catalog'));
 document.querySelector('.lab-main').addEventListener('click', (event) => {
     const undo = event.target.closest('[data-undo]');
     if (undo) return undoMark(undo.dataset.undo);
@@ -449,7 +556,7 @@ document.querySelector('.lab-main').addEventListener('click', (event) => {
     if (row) openSong(row.dataset.song);
 });
 $('openSettings').addEventListener('click', openSettings);
-$('openLab').addEventListener('click', () => showScreen('lab'));
+$('openLab').addEventListener('click', () => navigate('lab'));
 document.querySelector('[aria-label="Lab sections"]').addEventListener('click', (event) => {
     const button = event.target.closest('[data-lab]');
     if (button) showLabSection(button.dataset.lab);
@@ -469,6 +576,12 @@ api.onOpenSettings(openSettings);
 api.onOpenLab((section) => {
     if (!state.settings.showLabTools) return;
     showLabSection(section);
-    showScreen('lab');
+    navigate('lab');
+});
+api.onNewScan(newScan);
+api.onOpenPrevious(async () => {
+    const scans = await goHome();
+    if (!scans?.length) window.showToast?.('No previous scans yet.', 'info');
 });
 api.getSettings().then(applySettings);
+renderHistory();

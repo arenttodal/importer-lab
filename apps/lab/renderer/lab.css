@@ -122,6 +122,26 @@ body.lab-page {
     opacity: 0.5;
 }
 
+/* Home: previous scans */
+.lab-history {
+    width: 100%;
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: left;
+}
+
+.lab-history-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.lab-history-row .std-list-label {
+    flex: 1;
+}
+
 /* Folder picker */
 .lab-folder-row {
     display: flex;

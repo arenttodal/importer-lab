@@ -19,6 +19,7 @@ const { toRendererView } = require('./view');
 const { loadSettings, saveSettings } = require('./settings');
 const { listFolders, publicFolders } = require('./folders');
 const labels = require('./labels');
+const history = require('./history');
 const { buildResults, writeResults } = require('./export');
 const { PINNED_COMMIT, ENGINE_VERSION } = require('../../../packages/import-engine/src');
 
@@ -102,8 +103,12 @@ function publicSettings() {
     return { showLabTools: settings.showLabTools, scanOptions: settings.scanOptions };
 }
 
-function startScanning() {
-    if (currentScan) throw new Error('A scan is already running');
+// A new scan replaces one still running: the old one is cancelled and finishes first.
+async function startScanning() {
+    if (currentScan) {
+        currentScan.cancel();
+        await currentScan.promise.catch(() => {});
+    }
     const roots = chosenRoots();
     if (roots.length === 0) throw new Error('Tick at least one folder');
     const request = {
@@ -117,22 +122,24 @@ function startScanning() {
         }
     };
     const catalogId = labels.catalogId(request.roots);
-    currentScan = startScan({
+    const scan = startScan({
         request,
         dataDir: DATA_DIR,
         excludePaths: [DATA_DIR, app.getPath('userData')],
         onProgress: (progress) => send('lab:scan-progress', progress)
     });
-    currentScan.promise
+    currentScan = scan;
+    scan.promise
         .then((result) => {
             if (result.cancelled) return send('lab:scan-cancelled', null);
             const view = toRendererView(result, roots);
             last = { view, catalogId, scanId: result.scanId };
+            history.saveScan(DATA_DIR, { view, catalogId });
             send('lab:scan-done', { view, marks: labels.loadLabels(DATA_DIR, catalogId).marks });
         })
         .catch((error) => send('lab:scan-failed', error.message))
         .finally(() => {
-            currentScan = null;
+            if (currentScan === scan) currentScan = null;
         });
     return true;
 }
@@ -183,6 +190,17 @@ function registerIpc() {
     ipcMain.handle('lab:open-privacy-settings', () => (process.platform === 'darwin' ? shell.openExternal(PRIVACY_SETTINGS_URL) : false));
 
     ipcMain.handle('lab:start-scan', () => startScanning());
+    ipcMain.handle('lab:list-scans', () => history.listScans(DATA_DIR));
+    ipcMain.handle('lab:open-scan', (_event, scanId) => {
+        const record = history.openScan(DATA_DIR, scanId);
+        last = { view: record.view, catalogId: record.catalogId, scanId: record.scanId };
+        return { view: record.view, marks: labels.loadLabels(DATA_DIR, record.catalogId).marks };
+    });
+    ipcMain.handle('lab:delete-scan', (_event, scanId) => {
+        history.deleteScan(DATA_DIR, scanId);
+        if (last && last.scanId === scanId) last = null;
+        return history.listScans(DATA_DIR);
+    });
     ipcMain.handle('lab:cancel-scan', () => {
         if (currentScan) currentScan.cancel();
         return true;
@@ -231,7 +249,17 @@ function buildMenu() {
                       ]
                   }
               ]
-            : [{ label: 'File', submenu: [{ label: 'Settings…', accelerator: 'CmdOrCtrl+,', click: () => send('lab:open-settings') }, { role: 'quit' }] }]),
+            : []),
+        {
+            label: 'File',
+            submenu: [
+                { label: 'New Scan', accelerator: 'CmdOrCtrl+N', click: () => send('lab:new-scan') },
+                { label: 'Open Previous Results…', accelerator: 'CmdOrCtrl+O', click: () => send('lab:open-previous') },
+                ...(process.platform === 'darwin'
+                    ? [{ type: 'separator' }, { role: 'close' }]
+                    : [{ type: 'separator' }, { label: 'Settings…', accelerator: 'CmdOrCtrl+,', click: () => send('lab:open-settings') }, { role: 'quit' }])
+            ]
+        },
         { role: 'editMenu' },
         ...(settings.showLabTools
             ? [
