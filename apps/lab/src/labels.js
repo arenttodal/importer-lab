@@ -49,6 +49,8 @@ function cleanMark(input, context) {
         check: input.check === true,
         songBand: input.check === true ? text(input.songBand) : null,
         songKind: input.check === true ? text(input.songKind) : null,
+        stratum: input.check === true ? text(input.stratum) : null,
+        sampleWeight: input.check === true && Number.isFinite(input.sampleWeight) ? input.sampleWeight : null,
         scanId: context.scanId,
         engineVersion: context.engineVersion
     };

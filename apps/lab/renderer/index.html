@@ -124,7 +124,7 @@
                         <p id="catalogCount" class="lab-lede"></p>
                     </div>
                     <div class="lab-actions">
-                        <button id="checkStart" class="std-modal-btn std-modal-btn--secondary" type="button">Check 30 songs</button>
+                        <button id="checkStart" class="std-modal-btn std-modal-btn--secondary" type="button">Check 50 songs</button>
                         <button id="rescan" class="std-modal-btn std-modal-btn--secondary" type="button">Scan again</button>
                         <button id="exportResults" class="std-modal-btn std-modal-btn--primary" type="button">Send results to the team</button>
                     </div>
@@ -173,6 +173,8 @@
                             <button class="std-modal-btn std-modal-btn--secondary" type="button" data-check="merge">Should be merged…</button>
                             <button class="std-inline-btn" type="button" data-check="skip">Skip</button>
                         </div>
+                        <div class="std-modal-section-label lab-spaced">Closest entries — is one of these the same song?</div>
+                        <div id="checkClosest" class="std-list"></div>
                     </div>
                 </div>
                 <div class="lab-catalog-head">
@@ -211,10 +213,11 @@
                 </table>
             </section>
 
-            <!-- End of "Check 30 songs" -->
+            <!-- End of "Check 50 songs" -->
             <section class="lab-screen" data-screen="checkDone" hidden>
                 <h1 class="lab-heading">Thank you</h1>
                 <p id="checkSummary" class="lab-lede"></p>
+                <p id="checkConfidence" class="lab-lede"></p>
                 <div class="lab-actions">
                     <button id="checkExport" class="std-modal-btn std-modal-btn--primary" type="button">Send results to the team</button>
                     <button id="checkToCatalog" class="std-modal-btn std-modal-btn--secondary" type="button">Back to your catalog</button>
@@ -280,6 +283,13 @@
                                 <span id="existingSongsStatus" class="lab-muted">None loaded</span>
                             </div>
                             <span id="existingSongsError" class="std-form-error" hidden></span>
+                        </div>
+                        <div class="std-form-row">
+                            <span class="std-form-label">Scan from scratch</span>
+                            <div class="lab-actions">
+                                <button id="scanFromScratch" class="std-modal-btn std-modal-btn--secondary" type="button">Scan from scratch</button>
+                            </div>
+                            <span class="std-form-help">Reads every file again, ignoring what earlier scans stored, to measure a first scan. Still read-only; cloud files are still never opened.</span>
                         </div>
                         <label class="std-toggle lab-disabled" title="The AI pass arrives in milestone M4">
                             <input class="std-toggle-input" type="checkbox" disabled />

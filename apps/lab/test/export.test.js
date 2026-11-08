@@ -56,7 +56,7 @@ test('the results file is written inside the lab data folder', async (t) => {
     assert.ok(fs.existsSync(file));
 });
 
-test('the results file sums up the answers of "Check 30 songs" for this scan, with per-step timings', async (t) => {
+test('the results file sums up the answers of "Check songs" with their confidence, and per-step timings', async (t) => {
     const parent = tempDir(t, 'lab-export-');
     const { root } = generateCatalog(path.join(parent, 'catalog-a'));
     const result = await scanCatalog({ roots: [root], options: { followSymlinks: false, includeCloudPlaceholders: 'list', ai: { enabled: false, maxCostUsd: 0, model: '' }, mergeRule: 'exact-identity-only', identityPolicyVersion: 'x' } });
@@ -68,6 +68,7 @@ test('the results file sums up the answers of "Check 30 songs" for this scan, wi
         { id: 'd', kind: 'split', target: 'song', songName: 'W', scanId: 's1' }
     ];
     const parsed = buildResults({ view, labels: { marks }, app: { labVersion: 'test' } });
-    assert.deepEqual(parsed.check, { answered: 2, right: 1, wrong: 0, split: 0, merge: 1 });
+    assert.deepEqual([parsed.check.answered, parsed.check.right, parsed.check.merge, parsed.check.thisScan, parsed.check.target], [3, 2, 1, 2, 100]);
+    assert.equal(typeof parsed.check.lowerBound95, 'number');
     assert.equal(typeof parsed.scan.timings.readFilesMs, 'number');
 });

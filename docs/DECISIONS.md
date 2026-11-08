@@ -3,6 +3,53 @@
 Newest first. Each entry: what was decided, why, and what would change it. Conflicts between the spec
 and the brief are in `docs/CONFLICTS.md`; this log records how the build resolved them.
 
+## 2026-11-08 — 0.2.0-dev.7: stems, packs and the weighted check
+
+**D53. Versions inside a title.** A version token after the title has begun ("Glass Track Remake **V2**
+New Piano") ends the title; remake, rework and combined are stage words ("combined" only at the end of
+a title); "track" is a version word only with a number ("Intro Track 4"); a stem word with a process
+suffix ("PianoCLN", "PianoFX") is a stem part; "splits" means stems. Name policy `lab-names-3`.
+
+**D54. Stem sets join their song** when exactly one song of the same series has the same date, or exactly
+one song's title begins or extends theirs by stem, render, process, number or sample words only.
+"Sky Structure" never reaches "Sky".
+
+**D55. A part word makes a stem only when the rest of the song exists** (the producer's rule, 8 Nov). A
+single stem tries its export batch, a song in its folder, then the one song with its title in any
+series. If nothing else from that song exists it is an idea of its own and becomes a song that keeps its
+part words ("Kelp Piano Vox"). Only a stem that fits several songs is a loose stem.
+
+**D56. One pack, one entry.** Sample-pack entries merge when they share a prefix and a folder, or a
+distinctive word spelled almost the same with a prefix or folder in common. The pack is named by its
+prefix and the part most files share, and lists its contents. Entries with the pack's prefix in its
+folder of one-shots, or sharing its distinctive word, go to review instead of being guessed. A jam or
+idea word outranks pack words. Ambience, drum, shaker and pluck count as one-shot words (names of up to
+four words).
+
+**D57. Course material keeps its kind.** Files without a prefix never join a course-prefixed group; the
+course item and the song stay apart, are suggested against each other, and the course item goes to
+review. This explains the dev.6 mismatch the producer saw: one course demo had pulled an 18-file song
+into a group named after the course.
+
+**D58. Takes and plurals.** Single-digit takes join across folders (a join that is "check", never "sure");
+larger numbers in different folders stay apart. Idea, sketch and jam count the same in plural; other
+plurals stay suggestions (row 18). Word-by-word misspellings are suggested across prefixes, never
+joined.
+
+**D59. Weighted check** (`apps/lab/src/check.js`). Sessions of 50 drawn 40% from songs to check, 20%
+unclear, 25% sure with several files and 15% sure single-file, leaving out songs already checked. Each
+answer stores its stratum and weight (population share over sample share). Metrics and the results file
+show answered, right, the exact one-sided 95% lower bound (Clopper-Pearson), the weighted share right,
+and progress toward 100 marks.
+
+**D60. Scan from scratch** (Lab options; `--from-scratch` on the command line) ignores stored results so
+every local file is read again; the results are stored for the next scan. Timings and the results file
+say when a scan was from scratch.
+
+**D61. Baselines every build must keep** (private, never committed): the songs the producer marked right
+keep their files (added versions are reported, never silent), and the producer's answer key
+(`private/arn-catalog/answer-key.json`) passes. Each confirmed case also has an anonymised test.
+
 ## 2026-11-07 — 0.2.0-dev.6: fixes after the first real M2 scan
 
 **D44. Numbers contained in numbers.** Numbered files in different folders without the plain title

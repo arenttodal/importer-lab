@@ -1,7 +1,7 @@
 'use strict';
 
 // Headless lab scan: the same worker, guard and store as the Electron app, printed to the terminal.
-// Usage: npm run scan -- <folder> [<folder> ...] [--skip-placeholders] [--groups]
+// Usage: npm run scan -- <folder> [<folder> ...] [--skip-placeholders] [--groups] [--from-scratch]
 // Writes only to the lab data folder (IMPORTER_LAB_DATA, default ./lab-data, git-ignored).
 
 const path = require('node:path');
@@ -16,7 +16,7 @@ const { toRendererView } = require('../apps/lab/src/view');
 async function main() {
     const args = process.argv.slice(2);
     const folders = args.filter((arg) => !arg.startsWith('--'));
-    if (folders.length === 0) throw new Error('Usage: npm run scan -- <folder> [<folder> ...] [--skip-placeholders] [--groups]');
+    if (folders.length === 0) throw new Error('Usage: npm run scan -- <folder> [<folder> ...] [--skip-placeholders] [--groups] [--from-scratch]');
     fs.mkdirSync(DATA_DIR, { recursive: true });
 
     const roots = folders.map((folder) => ({ id: folder, name: path.basename(path.resolve(folder)), path: path.resolve(folder) }));
@@ -36,6 +36,7 @@ async function main() {
         request,
         dataDir: DATA_DIR,
         excludePaths: [DATA_DIR],
+        fromScratch: args.includes('--from-scratch'),
         onProgress: (progress) => {
             if (progress.phase !== 'crawl' || progress.files - lastShown >= 1000) {
                 lastShown = progress.files;

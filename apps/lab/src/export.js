@@ -7,6 +7,7 @@
 // a catalog exactly. Today's song for each file is kept for before/after comparison.
 
 const fs = require('node:fs');
+const { summarize } = require('./check');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
@@ -54,6 +55,7 @@ function buildResults({ view, labels, app }) {
             reusedFromLastScan: view.notes.reusedFromStore,
             projectsRead: view.notes.projectsRead,
             timings: view.notes.timings || {},
+            fromScratch: Boolean(view.notes.fromScratch),
             clueCounts: view.notes.clueCounts || {},
             engineVersion: view.engineVersion,
             policyVersion: view.policyVersion
@@ -79,11 +81,10 @@ function buildResults({ view, labels, app }) {
     };
 }
 
-// Answers from "Check 30 songs" on this scan: the random sample gives an unbiased accuracy figure.
+// Answers from "Check songs" (a weighted random sample) across this catalog's scans, with the
+// confidence they give; thisScan counts the answers given on the exported scan.
 function checkSummary(marks, scanId) {
-    const answers = marks.filter((mark) => mark.check && mark.scanId === scanId);
-    const count = (kind) => answers.filter((mark) => mark.kind === kind).length;
-    return { answered: answers.length, right: count('right'), wrong: count('wrong-song'), split: count('split'), merge: count('merge') };
+    return { ...summarize(marks), thisScan: marks.filter((mark) => mark.check && mark.scanId === scanId).length };
 }
 
 function exportFileName(date = new Date()) {

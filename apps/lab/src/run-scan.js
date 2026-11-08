@@ -5,8 +5,10 @@
 const path = require('node:path');
 const { Worker } = require('node:worker_threads');
 
-function startScan({ request, dataDir, excludePaths = [], onProgress = () => {} }) {
-    const worker = new Worker(path.join(__dirname, 'scan-worker.js'), { workerData: { request, dataDir, excludePaths } });
+// fromScratch: ignore stored results from earlier scans (every file is read again); the new results
+// are still stored for the next scan.
+function startScan({ request, dataDir, excludePaths = [], fromScratch = false, onProgress = () => {} }) {
+    const worker = new Worker(path.join(__dirname, 'scan-worker.js'), { workerData: { request, dataDir, excludePaths, fromScratch } });
     const promise = new Promise((resolve, reject) => {
         let settled = false;
         worker.on('message', (message) => {

@@ -1,5 +1,5 @@
 {
-    "version": "lab-names-2",
+    "version": "lab-names-3",
     "about": "Name policy for the Importer Lab engine. Works on the main app's preClean() output. Words listed here are set aside from the song identity and kept as version labels or stem parts. Changing anything here means a new version string.",
     "formatWords": [
         "wav",
@@ -84,7 +84,12 @@
         "fix",
         "mixed",
         "adds",
-        "add"
+        "add",
+        "remake",
+        "remakes",
+        "rework",
+        "reworked",
+        "combined"
     ],
     "stagePhrases": [
         "final touches",
@@ -114,7 +119,8 @@
         "alt",
         "alternate",
         "clean",
-        "dirty"
+        "dirty",
+        "dwn"
     ],
     "renderPhrases": [
         "pitch up",
@@ -144,7 +150,6 @@
         "cut",
         "cutdown",
         "full",
-        "track",
         "piece",
         "extended"
     ],
@@ -163,11 +168,13 @@
         "take",
         "tk",
         "no",
-        "number"
+        "number",
+        "track"
     ],
     "stemMarkers": [
         "stems",
-        "stem"
+        "stem",
+        "splits"
     ],
     "stemWords": [
         "whoosh",
@@ -266,7 +273,8 @@
         "impacts",
         "hits",
         "end",
-        "only"
+        "only",
+        "atmos"
     ],
     "stemSecondaryWords": [
         "wet",
@@ -426,10 +434,18 @@
             "hit",
             "hits",
             "oneshot",
-            "oneshots"
+            "oneshots",
+            "drum",
+            "drums",
+            "shaker",
+            "shakers",
+            "ambience",
+            "ambiences",
+            "pluck",
+            "plucks"
         ],
         "packFolderMinFiles": 4,
-        "oneShotMaxWords": 3,
+        "oneShotMaxWords": 4,
         "courseSignalWords": [
             "tutorial",
             "tutorials",
@@ -451,6 +467,58 @@
             "vo",
             "webinar",
             "workshop"
+        ],
+        "ideaWords": [
+            "jam",
+            "jams",
+            "idea",
+            "ideas",
+            "sketch",
+            "sketches",
+            "blooper"
+        ],
+        "packGenericWords": [
+            "patches",
+            "patch",
+            "presets",
+            "preset",
+            "samples",
+            "sample",
+            "sounds",
+            "sound",
+            "loops",
+            "loop",
+            "textures",
+            "texture",
+            "drums",
+            "drum",
+            "kits",
+            "kit",
+            "test",
+            "tests",
+            "assembled",
+            "pack",
+            "packs",
+            "design",
+            "random"
         ]
+    },
+    "stemProcessSuffixes": [
+        "cln",
+        "clean",
+        "fx",
+        "wet",
+        "dry",
+        "verb",
+        "dly",
+        "proc"
+    ],
+    "trailingOnlyWords": [
+        "combined"
+    ],
+    "pluralSameAs": {
+        "ideas": "idea",
+        "sketches": "sketch",
+        "jams": "jam"
     }
 }

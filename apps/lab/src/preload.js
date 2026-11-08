@@ -25,7 +25,7 @@ contextBridge.exposeInMainWorld('labAPI', {
     permissionExplained: () => ipcRenderer.invoke('lab:permission-explained'),
     openPrivacySettings: () => ipcRenderer.invoke('lab:open-privacy-settings'),
 
-    startScan: () => ipcRenderer.invoke('lab:start-scan'),
+    startScan: (options) => ipcRenderer.invoke('lab:start-scan', { fromScratch: options?.fromScratch === true }),
     listScans: () => ipcRenderer.invoke('lab:list-scans'),
     openScan: (scanId) => ipcRenderer.invoke('lab:open-scan', scanId),
     deleteScan: (scanId) => ipcRenderer.invoke('lab:delete-scan', scanId),
@@ -39,6 +39,8 @@ contextBridge.exposeInMainWorld('labAPI', {
     updateMark: (markId, changes) => ipcRenderer.invoke('lab:update-mark', markId, changes),
     removeMark: (markId) => ipcRenderer.invoke('lab:remove-mark', markId),
     exportResults: () => ipcRenderer.invoke('lab:export-results'),
+    checkSample: () => ipcRenderer.invoke('lab:check-sample'),
+    checkSummary: () => ipcRenderer.invoke('lab:check-summary'),
 
     onOpenSettings: subscribe('lab:open-settings'),
     onOpenLab: subscribe('lab:open-lab'),

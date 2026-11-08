@@ -19,6 +19,7 @@ const { toRendererView } = require('./view');
 const { loadSettings, saveSettings } = require('./settings');
 const { listFolders, publicFolders } = require('./folders');
 const labels = require('./labels');
+const check = require('./check');
 const history = require('./history');
 const { buildResults, writeResults } = require('./export');
 const { loadExistingSongs } = require('./existing-songs');
@@ -117,7 +118,7 @@ function existingSongsForScan() {
 }
 
 // A new scan replaces one still running: the old one is cancelled and finishes first.
-async function startScanning() {
+async function startScanning({ fromScratch = false } = {}) {
     if (currentScan) {
         currentScan.cancel();
         await currentScan.promise.catch(() => {});
@@ -142,6 +143,7 @@ async function startScanning() {
         request,
         dataDir: DATA_DIR,
         excludePaths: [DATA_DIR, app.getPath('userData')],
+        fromScratch,
         onProgress: (progress) => send('lab:scan-progress', progress)
     });
     currentScan = scan;
@@ -222,7 +224,7 @@ function registerIpc() {
     });
     ipcMain.handle('lab:open-privacy-settings', () => (process.platform === 'darwin' ? shell.openExternal(PRIVACY_SETTINGS_URL) : false));
 
-    ipcMain.handle('lab:start-scan', () => startScanning());
+    ipcMain.handle('lab:start-scan', (_event, options = {}) => startScanning({ fromScratch: options?.fromScratch === true }));
     ipcMain.handle('lab:list-scans', () => history.listScans(DATA_DIR));
     ipcMain.handle('lab:open-scan', (_event, scanId) => {
         const record = history.openScan(DATA_DIR, scanId);
@@ -252,6 +254,15 @@ function registerIpc() {
         labels.removeMark(DATA_DIR, last.catalogId, markId);
         return true;
     });
+
+    // "Check songs": a weighted sample of songs not checked yet, and the confidence so far.
+    ipcMain.handle('lab:check-sample', () => {
+        if (!last) throw new Error('Scan first');
+        const checked = new Set(labels.loadLabels(DATA_DIR, last.catalogId).marks.filter((mark) => mark.check).map((mark) => mark.songName));
+        const exclude = last.view.songs.filter((song) => checked.has(song.name)).map((song) => song.key);
+        return check.drawSample(last.view.songs, { exclude });
+    });
+    ipcMain.handle('lab:check-summary', () => (last ? check.summarize(labels.loadLabels(DATA_DIR, last.catalogId).marks) : check.summarize([])));
 
     ipcMain.handle('lab:export-results', () => {
         if (!last) throw new Error('Scan first');

@@ -40,9 +40,8 @@
                 ["BRIGHTWAVE - Other Cue.wav", "bounces"],
                 ["BRIGHTWAVE - Third Cue.wav", "bounces"]
             ],
-            "together": [["BRIGHTWAVE - CORALINE PIANO IDEA 1.3.wav", "BRIGHTWAVE - CORALINE PIANO IDEA 2.wav", "BRIGHTWAVE - CORALINE PIANO IDEA #2.wav", "BRIGHTWAVE - CORALINE PIANO IDEA 1.4 W IMAGE.wav", "BRIGHTWAVE - CORALINE PIANO IDEA 1.4 WO IMAGE.wav"]],
-            "proposals": [["BRIGHTWAVE - CORALINE PIANO IDEA 2.wav", "BRIGHTWAVE - CORALINE PIANO IDEAS.wav"]],
-            "expectedGap": "\"Ideas\" (plural) is proposed for review, not merged: by row 18, spelling variants are never merged on names alone. Shared samples or timing can confirm it on a catalog whose projects are downloaded."
+            "together": [["BRIGHTWAVE - CORALINE PIANO IDEA 1.3.wav", "BRIGHTWAVE - CORALINE PIANO IDEA 2.wav", "BRIGHTWAVE - CORALINE PIANO IDEA #2.wav", "BRIGHTWAVE - CORALINE PIANO IDEA 1.4 W IMAGE.wav", "BRIGHTWAVE - CORALINE PIANO IDEA 1.4 WO IMAGE.wav", "BRIGHTWAVE - CORALINE PIANO IDEAS.wav", "BRIGHTWAVE - CORALINE PIANO IDEAS Project"]],
+            "expectedGap": "Since 0.2.0-dev.7 \"Ideas\" and \"Idea\" count as the same word (the producer's decision, 8 Nov 2026); other plurals (row 18) are still only proposed."
         },
         {
             "row": 13,

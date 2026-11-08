@@ -122,7 +122,7 @@ async function scanCatalog(request, hooks = {}) {
 
     function previewNames() {
         const files = entries.map(({ item, classification }) => toProposedFile(item, classification, false)).filter((file) => file.type !== 'unknown');
-        const names = groupCatalog(files, groupingOptions(request)).songs.filter((song) => song.kind === 'song').map((song) => song.songName);
+        const names = groupCatalog(files, { ...groupingOptions(request), preview: true }).songs.filter((song) => song.kind === 'song').map((song) => song.songName);
         const newSongs = names.filter((name) => !previewSongs.has(name));
         for (const name of newSongs) previewSongs.add(name);
         return newSongs;

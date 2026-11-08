@@ -35,6 +35,18 @@ test('a full scan, run twice, changes nothing in the scanned folder', async (t) 
     assert.deepEqual(fs.readdirSync(dataDir).filter((name) => !name.startsWith('evidence.sqlite')), []);
 });
 
+test('"Scan from scratch" reads every file again and still changes nothing in the scanned folder', async (t) => {
+    const { root } = generateCatalog(path.join(tempDir(t, 'lab-ro-'), 'catalog-a'));
+    const dataDir = tempDir(t, 'lab-data-');
+    const before = snapshotTree(root);
+    await startScan({ request: request(root), dataDir }).promise;
+    const fresh = await startScan({ request: request(root), dataDir, fromScratch: true }).promise;
+    assert.deepEqual(snapshotTree(root), before);
+    assert.equal(fresh.notes.reusedFromStore, 0);
+    assert.equal(fresh.notes.fromScratch, true);
+    assert.ok(fresh.notes.clueCounts.filesOpened > 0);
+});
+
 test('the scan worker runs with the guard installed: a write into the scanned folder is blocked', async (t) => {
     const { root } = generateCatalog(path.join(tempDir(t, 'lab-ro-'), 'catalog-a'));
     const dataDir = tempDir(t, 'lab-data-');

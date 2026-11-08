@@ -25,6 +25,7 @@ async function run() {
     try {
         const result = await scanCatalog(workerData.request, {
             previous: (item) => {
+                if (workerData.fromScratch) return null;
                 const lookupStart = Date.now();
                 try {
                     return store.lookup(item);
@@ -42,6 +43,7 @@ async function run() {
         store.saveScan(scanId, result.records, result.catalog.stats);
         // The engine's own steps include the store lookups made during the crawl.
         Object.assign(result.notes.timings, { storeLookupMs, storeSaveMs: Date.now() - saveStart, totalMs: Date.now() - startedAt });
+        result.notes.fromScratch = Boolean(workerData.fromScratch);
         const { records, ...withoutRecords } = result;
         return { type: 'done', result: { scanId, ...withoutRecords } };
     } finally {

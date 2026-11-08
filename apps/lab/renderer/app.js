@@ -19,7 +19,6 @@ const MARK_LABEL = {
     merge: { song: 'Should be merged' },
     right: { song: 'Right' }
 };
-const CHECK_SIZE = 30;
 const LIVE_SONGS_SHOWN = 20;
 
 function escapeHtml(value) {
@@ -168,9 +167,9 @@ function resetScanScreen() {
     $('seeCatalog').hidden = true;
 }
 
-async function startScan() {
+async function startScan(options = {}) {
     try {
-        await api.startScan();
+        await api.startScan(options);
         state.scanning = true;
     } catch (error) {
         $('foldersError').textContent = cleanError(error);
@@ -262,6 +261,7 @@ function songRow(song) {
     const chips = [
         song.kind !== 'song' ? `<span class="std-chip">${KIND_LABEL[song.kind]}</span>` : '',
         song.kind === 'song' && BAND_LABEL[song.band] ? `<span class="std-chip">${BAND_LABEL[song.band]}</span>` : '',
+        song.review ? '<span class="std-chip">Review</span>' : '',
         song.existingSongId ? '<span class="std-chip">In your Library</span>' : '',
         cloud ? '<span class="std-chip">Cloud</span>' : ''
     ].join('');
@@ -295,8 +295,8 @@ function renderCatalog() {
     const songs = view.songs.filter((song) => song.kind === 'song');
     const check = songs.filter((song) => song.band !== 'sure').sort((a, b) => (a.band === b.band ? Number(b.precheck) - Number(a.precheck) || byName(a, b) : a.band === 'unsure' ? -1 : 1));
     const sure = songs.filter((song) => song.band === 'sure').sort(byName);
-    const loose = view.songs.filter((song) => song.kind === 'loose-stems');
-    const others = view.songs.filter((song) => song.kind !== 'song' && song.kind !== 'loose-stems').sort((a, b) => a.kind.localeCompare(b.kind) || byName(a, b));
+    const loose = view.songs.filter((song) => song.kind === 'loose-stems' || (song.kind !== 'song' && song.review));
+    const others = view.songs.filter((song) => song.kind !== 'song' && song.kind !== 'loose-stems' && !song.review).sort((a, b) => a.kind.localeCompare(b.kind) || byName(a, b));
     const where = view.roots.map((root) => root.name).join(', ');
     $('catalogCount').textContent = `${songs.length.toLocaleString()} songs from ${view.stats.files.toLocaleString()} files in ${where}.`;
     $('catalogRows').innerHTML = groupRows('Check these first', [...loose, ...check]) + groupRows('Songs', sure) + (state.showOtherKinds ? groupRows('Not counted as songs', others) : '');
@@ -336,7 +336,10 @@ function renderSong() {
     const song = state.song;
     const checking = Boolean(state.check && state.check.keys[state.check.index] === song.key);
     $('checkBar').hidden = !checking;
-    if (checking) $('checkProgress').textContent = `Song ${state.check.index + 1} of ${state.check.keys.length}`;
+    if (checking) {
+        $('checkProgress').textContent = `Song ${state.check.index + 1} of ${state.check.keys.length}`;
+        renderClosest(song);
+    }
     const filesById = new Map(state.view.files.map((file) => [file.fileId, file]));
     const facts = [song.facts.bpm ? `${song.facts.bpm} BPM` : null, song.facts.lengthSec ? formatLength(song.facts.lengthSec) : null].filter(Boolean).join(' · ');
     const band = song.kind !== 'song' ? KIND_LABEL[song.kind] : { sure: 'Sure', unsure: 'Check this', unclear: 'Unclear' }[song.band];
@@ -557,13 +560,14 @@ function renderLab() {
     const kinds = {};
     for (const song of view.songs) kinds[song.kind] = (kinds[song.kind] || 0) + 1;
     const marks = state.marks;
-    api.getInfo().then((info) => {
+    Promise.all([api.getInfo(), api.checkSummary()]).then(([info, summary]) => {
         const rows = [
             ['Files', view.stats.files],
             ['Songs: new engine / today', `${songs.length} / ${view.baselines.preserve.groups.length}`],
             ['Sure / check / unclear', `${count('sure')} / ${count('unsure')} / ${count('unclear')}`],
             ['Files in sure songs', `${Math.round(view.stats.autoMatchedShare * 100)}%`],
             ['Not counted as songs', Object.entries(kinds).filter(([kind]) => kind !== 'song').map(([kind, number]) => `${number} ${KIND_LABEL[kind].toLowerCase()}`).join(', ') || 'none'],
+            ['Checked songs (random, weighted sample)', confidenceText(summary)],
             ['Marks: should be split (false merges)', marks.filter((mark) => mark.kind === 'split').length],
             ['Marks: should be merged (false splits)', marks.filter((mark) => mark.kind === 'merge').length],
             ['Marks: file in the wrong song', marks.filter((mark) => mark.kind === 'wrong-song' && mark.target === 'file').length],
@@ -573,7 +577,7 @@ function renderLab() {
             ['Contributors learned', view.notes.contributors.join(', ') || 'none'],
             ['Folders read / not readable', `${view.notes.folders} / ${view.notes.unreadableFolders}`],
             ['Cloud placeholders (never opened)', view.notes.placeholdersFound],
-            ['Reused from the last scan', view.notes.reusedFromStore],
+            ['Reused from the last scan', view.notes.fromScratch ? 'none (scan from scratch)' : view.notes.reusedFromStore],
             ['Scan time', `${(view.stats.durationMs / 1000).toFixed(2)} s`],
             ...timingRows(view.notes.timings || {}, view.notes.clueCounts || {}),
             ['AI cost', `$${view.stats.aiCostUsd.toFixed(2)}`],
@@ -631,20 +635,12 @@ function courseSuggestionPrefixes() {
 
 // ── "Check 30 songs": a random sample, one song at a time, answered with one click ──
 
-function randomSample(items, size) {
-    const pool = [...items];
-    const random = new Uint32Array(pool.length);
-    crypto.getRandomValues(random);
-    for (let index = pool.length - 1; index > 0; index -= 1) {
-        const other = random[index] % (index + 1);
-        [pool[index], pool[other]] = [pool[other], pool[index]];
-    }
-    return pool.slice(0, size);
-}
-
-function startCheck() {
-    const songs = state.view.songs.filter((song) => song.kind === 'song');
-    state.check = { scanId: state.view.scanId, keys: randomSample(songs, CHECK_SIZE).map((song) => song.key), index: 0, answers: {} };
+// The sample comes from the main process: weighted toward songs to check, unclear songs and songs
+// with several files, leaving out songs already checked (apps/lab/src/check.js).
+async function startCheck() {
+    const picks = await api.checkSample();
+    if (!picks.length) return window.showToast?.('Every song has been checked.', 'success');
+    state.check = { scanId: state.view.scanId, keys: picks.map((pick) => pick.key), picks: new Map(picks.map((pick) => [pick.key, pick])), index: 0, answers: {} };
     showCheckSong();
 }
 
@@ -668,16 +664,52 @@ function nextCheckSong() {
     $('checkSummary').textContent = `You checked ${answers.length} of ${state.check.keys.length} songs: ${count('right')} right, ${count('wrong-song')} wrong, ${count('split')} to split, ${count('merge')} to merge. Your answers are saved and go in the results you send.`;
     state.check = null;
     navigate('checkDone');
+    api.checkSummary().then((summary) => ($('checkConfidence').textContent = confidenceText(summary)));
 }
 
 async function answerCheck(kind) {
     const song = state.song;
     if (kind !== 'skip') {
-        const mark = await saveMark({ kind, target: 'song', songName: song.name, check: true, songBand: song.band, songKind: song.kind });
+        const pick = state.check.picks.get(song.key) || {};
+        const mark = await saveMark({ kind, target: 'song', songName: song.name, check: true, songBand: song.band, songKind: song.kind, stratum: pick.stratum, sampleWeight: pick.weight });
         state.check.answers[song.key] = kind;
         if (kind === 'merge') return openMergePicker(song, mark, nextCheckSong);
     }
     nextCheckSong();
+}
+
+// Songs whose names look most like this one, so a split shows up while checking.
+function closestEntries(song, limit = 5) {
+    const words = (text) => new Set(text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((word) => word.length > 1));
+    const mine = words(song.name);
+    return state.view.songs
+        .filter((other) => other.key !== song.key)
+        .map((other) => {
+            const theirs = words(other.name);
+            const shared = [...mine].filter((word) => theirs.has(word)).length;
+            return { other, score: shared ? (2 * shared) / (mine.size + theirs.size) : 0 };
+        })
+        .filter((entry) => entry.score >= 0.4)
+        .sort((a, b) => b.score - a.score || a.other.name.localeCompare(b.other.name))
+        .slice(0, limit)
+        .map((entry) => entry.other);
+}
+
+function renderClosest(song) {
+    const close = closestEntries(song);
+    $('checkClosest').innerHTML = close.length
+        ? close
+              .map((other) => `<div class="std-list-row"><span class="std-list-label">${escapeHtml(other.name)}<br /><span class="std-list-meta">${escapeHtml([other.countsLine, KIND_LABEL[other.kind] || ''].filter(Boolean).join(' · '))}</span></span><button class="std-inline-btn" type="button" data-same-song="${escapeHtml(other.name)}">Same song</button></div>`)
+              .join('')
+        : '<div class="lab-muted">No other entry has a similar name.</div>';
+}
+
+// "27 of 27 right: at least 89% right (95% confidence)". The bound is exact (one-sided).
+function confidenceText(summary) {
+    if (!summary.answered) return `No songs checked yet. Aim: ${summary.target}.`;
+    const bound = summary.lowerBound95 === null ? '' : `: at least ${Math.floor(summary.lowerBound95 * 100)}% right (95% confidence)`;
+    const weighted = summary.weightedRightShare === null ? '' : `; weighted to the whole catalog ${Math.round(summary.weightedRightShare * 100)}% right`;
+    return `${summary.right} of ${summary.answered} right${bound}${weighted}. ${summary.answered} of ${summary.target} checked.`;
 }
 
 // ── Wiring ──
@@ -729,7 +761,18 @@ $('cancelScan').addEventListener('click', () => api.cancelScan());
 $('seeCatalog').addEventListener('click', () => navigate('catalog'));
 $('rescan').addEventListener('click', newScan);
 $('checkStart').addEventListener('click', startCheck);
-$('checkBar').addEventListener('click', (event) => {
+$('scanFromScratch').addEventListener('click', () => startScan({ fromScratch: true }));
+$('checkBar').addEventListener('click', async (event) => {
+    const same = event.target.closest('[data-same-song]');
+    if (same && state.check) {
+        const song = state.song;
+        const pick = state.check.picks.get(song.key) || {};
+        const mark = await saveMark({ kind: 'merge', target: 'song', songName: song.name, check: true, songBand: song.band, songKind: song.kind, stratum: pick.stratum, sampleWeight: pick.weight });
+        const updated = await api.updateMark(mark.id, { mergeWithSongName: same.dataset.sameSong });
+        Object.assign(state.marks.find((candidate) => candidate.id === mark.id), updated);
+        state.check.answers[song.key] = 'merge';
+        return nextCheckSong();
+    }
     const button = event.target.closest('[data-check]');
     if (button && state.check) answerCheck(button.dataset.check);
 });
@@ -780,7 +823,12 @@ document.querySelector('.lab-main').addEventListener('click', (event) => {
     if (row) openSong(row.dataset.song);
 });
 $('openSettings').addEventListener('click', openSettings);
-$('openLab').addEventListener('click', () => navigate('lab'));
+// Metrics include marks and check answers given since the scan, so the Lab is drawn again on opening.
+function openLabScreen() {
+    if (state.view) renderLab();
+    navigate('lab');
+}
+$('openLab').addEventListener('click', openLabScreen);
 document.querySelector('[aria-label="Lab sections"]').addEventListener('click', (event) => {
     const button = event.target.closest('[data-lab]');
     if (button) showLabSection(button.dataset.lab);
@@ -800,7 +848,7 @@ api.onOpenSettings(openSettings);
 api.onOpenLab((section) => {
     if (!state.settings.showLabTools) return;
     showLabSection(section);
-    navigate('lab');
+    openLabScreen();
 });
 api.onNewScan(newScan);
 api.onOpenPrevious(async () => {

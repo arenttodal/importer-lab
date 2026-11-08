@@ -336,19 +336,26 @@ test('sample packs: an export batch never takes a one-shot as its mix', () => {
     assert.ok(result.songs.every((song) => song.kind !== 'song'), result.songs.map((song) => `${song.songName}:${song.kind}`).join(', '));
 });
 
-test('lone stems: one stem joins a song in its folder by the start of its name, else it is a loose stem', () => {
+test('lone stems: a part-word file is a stem only when the rest of its song exists; otherwise it is an idea of its own', () => {
     const result = groupCatalog([
         file('Copper Field.wav', 'bounces', { folder: 'A' }),
         file('Copper Field Choir Take Vox.wav', 'stems', { folder: 'A' }),
         file('Sky.wav', 'bounces', { folder: 'B' }),
         file('Sky Structure Piano.wav', 'stems', { folder: 'C' }),
-        file('Unknown Session Strings.wav', 'stems', { folder: 'D' })
+        file('Jam - Saturday Night - Lantern Heaven.wav', 'bounces', { folder: 'D' }),
+        file('Saturday night lantern heaven vox.m4a', 'stems', { folder: 'E' }),
+        file('Kelp piano 121 vox.m4a', 'stems', { folder: 'F' }),
+        file('Harbor - Dec 3 2 - Splits - Mic 1 Vox.wav', 'stems', { folder: 'G' }),
+        file('Harbor - Dec 3 2 - Splits - Live Piano.wav', 'stems', { folder: 'G' })
     ]);
-    assert.ok(sameSong(result, 'Copper Field.wav', 'Copper Field Choir Take Vox.wav'));
-    assert.ok(!songOf(result, 'Sky Structure Piano.wav'), 'a stem in another folder never joins a shorter title');
-    const loose = result.looseStems.map((member) => member.name).sort();
-    assert.deepEqual(loose, ['Sky Structure Piano.wav', 'Unknown Session Strings.wav']);
-    assert.equal(result.songs.filter((song) => song.kind === 'stem-set').length, 0);
+    assert.ok(sameSong(result, 'Copper Field.wav', 'Copper Field Choir Take Vox.wav'), 'joins a song in its folder');
+    assert.ok(!sameSong(result, 'Sky.wav', 'Sky Structure Piano.wav'), 'never joins a shorter, different title');
+    assert.ok(sameSong(result, 'Jam - Saturday Night - Lantern Heaven.wav', 'Saturday night lantern heaven vox.m4a'), 'joins the one song with its title in another series');
+    const idea = songOf(result, 'Kelp piano 121 vox.m4a');
+    assert.equal(idea.kind, 'song', 'nothing else from this song exists: an idea of its own');
+    assert.match(idea.songName, /Vox/);
+    assert.ok(sameSong(result, 'Harbor - Dec 3 2 - Splits - Mic 1 Vox.wav', 'Harbor - Dec 3 2 - Splits - Live Piano.wav'), '"Splits" means stems: one recording');
+    assert.equal(result.looseStems.length, 0);
 });
 
 test('suggestions: titles that differ only by number are never suggested; one-shot stems in a pack stay in the pack', () => {
@@ -358,4 +365,91 @@ test('suggestions: titles that differ only by number are never suggested; one-sh
     const pack = groupCatalog(['CLAPS', 'HIP HOP KIT', 'BASSES', 'SFX 2', 'KICK'].map((part) => file(`STORM -  ${part}.wav`, 'bounces', folder)).concat([file('STORM -  Big Snare.wav', 'stems', folder)]));
     assert.equal(pack.looseStems.length, 0);
     assert.equal(songOf(pack, 'STORM -  Big Snare.wav').kind, 'sample-pack');
+});
+
+test('suggestions: a word-by-word misspelling is suggested across prefixes, never joined', () => {
+    const result = groupCatalog([
+        file("QUILL - Sailin' slow, driftin' home VOCALS.wav", 'stems'),
+        file('QUILL - Other Song.wav'),
+        file('QUILL - Third Song.wav'),
+        file('marlow - Sailing Sloww Drifting Home.wav'),
+        file('marlow - Fourth Song.wav'),
+        file('marlow - Fifth Song.wav')
+    ]);
+    const vocal = songOf(result, "QUILL - Sailin' slow, driftin' home VOCALS.wav");
+    const other = songOf(result, 'marlow - Sailing Sloww Drifting Home.wav');
+    assert.notEqual(vocal.proposalId, other.proposalId, 'never joined');
+    assert.ok(vocal.possibleMatches.some((match) => match.proposalId === other.proposalId), 'suggested for review');
+});
+
+test('sample packs: one pack, one entry with its contents; neighbours go to review; a jam outranks patches', () => {
+    const pack = { folder: 'PACK' };
+    const result = groupCatalog([
+        ...['CLAPS', 'BASSES', 'HIP HOP KIT', 'KICK', 'Kick 2', 'SFX 2'].map((part) => file(`STORM -  ${part}.wav`, 'bounces', pack)),
+        file('STORM -  ORCHESTRA.wav', 'bounces', pack),
+        file('Lx - Nyckelharpa - Drones - 1 - E.wav', 'bounces', { folder: 'D1' }),
+        file('Lx - Nyckelharpa - Drones - 2 - B.wav', 'bounces', { folder: 'D1' }),
+        file('Lx - Nyckelharpa - Drones - 3 - E.wav', 'bounces', { folder: 'D1' }),
+        file('Lx - Nyckelharpa - Drones - 4 - A.wav', 'bounces', { folder: 'D1' }),
+        file('Lx - Nyckelharpa - Drones - 5 - E.wav', 'bounces', { folder: 'D1' }),
+        file('Lx - Nyckelharp Textures - Assembled - 1.wav', 'bounces', { folder: 'D2' }),
+        file('Lx - Nyckelharp Textures - Assembled - 2.wav', 'bounces', { folder: 'D2' }),
+        file('Lx - Nyckelharp Textures - Assembled - 3.wav', 'bounces', { folder: 'D2' }),
+        file('Lx - Nyckelharp Textures - Assembled - 4.wav', 'bounces', { folder: 'D2' }),
+        file('Lx - Nyckelharp Textures - Assembled - 5.wav', 'bounces', { folder: 'D2' }),
+        file('Synth Jam - Testing Out Pulsar Patches.wav')
+    ]);
+    const storm = songOf(result, 'STORM -  CLAPS.wav');
+    assert.equal(storm.kind, 'sample-pack');
+    assert.equal(storm.songName, 'Storm');
+    assert.ok(sameSong(result, 'STORM -  CLAPS.wav', 'STORM -  BASSES.wav', 'STORM -  KICK.wav', 'STORM -  SFX 2.wav'), 'one entry');
+    assert.ok(storm.reasons.some((reason) => /Basses/.test(reason.text) && /Claps/.test(reason.text)), 'contents listed');
+    const orchestra = songOf(result, 'STORM -  ORCHESTRA.wav');
+    assert.ok(orchestra.review && orchestra.band === 'unclear', 'a neighbour of the pack goes to review, not into the pack');
+    assert.ok(sameSong(result, 'Lx - Nyckelharpa - Drones - 1 - E.wav', 'Lx - Nyckelharp Textures - Assembled - 1.wav'), 'a pack word spelled almost the same joins across folders');
+    assert.equal(songOf(result, 'Synth Jam - Testing Out Pulsar Patches.wav').kind, 'song');
+});
+
+test('course material keeps its kind: a course demo never joins the song; the pair is suggested and reviewed', () => {
+    const result = groupCatalog(
+        [
+            file('ZQT - Nimbus Demo wip1.1.wav'),
+            file('ZQT - Nimbus FX Project', 'projects'),
+            file('ZQT - Harp Demo.wav'),
+            file('Nimbus - WIP 1 - - MASTER.wav'),
+            file('Nimbus - WIP 1 - UNMASTER - - MASTER.wav'),
+            file('Nimbus - WIP 1 - - Strings.wav', 'stems')
+        ],
+        { courseNamespaces: ['zqt'] }
+    );
+    const demo = songOf(result, 'ZQT - Nimbus Demo wip1.1.wav');
+    const song = songOf(result, 'Nimbus - WIP 1 - - MASTER.wav');
+    assert.notEqual(demo.proposalId, song.proposalId);
+    assert.equal(demo.kind, 'course');
+    assert.equal(songOf(result, 'ZQT - Nimbus FX Project').kind, 'course', 'same prefix, same kind');
+    assert.equal(song.kind, 'song');
+    assert.ok(!/zqt/i.test(song.songName), 'the song is not named after the course');
+    assert.ok(demo.review);
+    assert.ok(song.possibleMatches.some((match) => match.proposalId === demo.proposalId));
+});
+
+test('takes join across folders; tempos do not; "Ideas" counts as "Idea", other plurals are only suggested', () => {
+    const result = groupCatalog([
+        file('Cracked Glass Stretch Sample 1.wav', 'bounces', { folder: 'A' }),
+        file('Cracked Glass Stretch Sample 3.wav', 'bounces', { folder: 'B' }),
+        file('Drive Glass 53.wav', 'bounces', { folder: 'C' }),
+        file('Drive Glass 73.wav', 'bounces', { folder: 'D' }),
+        file('Sky Night 1.wav', 'bounces', { folder: 'E' }),
+        file('Sky Night 21.wav', 'bounces', { folder: 'F' }),
+        file('MARLOW - Coraline Piano Ideas.wav'),
+        file('MARLOW - Coraline Piano Idea 1.4 W Image.wav'),
+        file('MARLOW - Pinwheel.wav'),
+        file('MARLOW - Pinwheels.wav')
+    ]);
+    assert.ok(sameSong(result, 'Cracked Glass Stretch Sample 1.wav', 'Cracked Glass Stretch Sample 3.wav'));
+    assert.equal(songOf(result, 'Cracked Glass Stretch Sample 1.wav').band, 'unsure', 'a take join across folders is checked, never sure');
+    assert.ok(!sameSong(result, 'Sky Night 1.wav', 'Sky Night 21.wav'), 'only single-digit takes join across folders');
+    assert.ok(!sameSong(result, 'Drive Glass 53.wav', 'Drive Glass 73.wav'), 'tempos in different folders stay apart (row 27)');
+    assert.ok(sameSong(result, 'MARLOW - Coraline Piano Ideas.wav', 'MARLOW - Coraline Piano Idea 1.4 W Image.wav'));
+    assert.ok(!sameSong(result, 'MARLOW - Pinwheel.wav', 'MARLOW - Pinwheels.wav'), 'row 18: other plurals are only suggested');
 });

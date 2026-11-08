@@ -96,6 +96,8 @@ function applySiblingStems(entries) {
         const title = stems[0].entry.analysis.title;
         for (const member of members) {
             if (member.entry.analysis.isStemName || !AUDIO_EXTS.has(member.entry.file.ext)) continue;
+            // "… - MASTER", "… - Final": the mix among its stems, not a stem.
+            if (member.last.split(' ').every((word) => namePolicy.stageWords.includes(word))) continue;
             member.entry.analysis = { ...member.entry.analysis, title, isStemName: true, stemPart: member.last, removed: [...member.entry.analysis.removed, { rule: 'stem', words: member.last }] };
             member.entry.siblingStem = true;
         }
@@ -143,8 +145,8 @@ function bucketKey(entry) {
 }
 
 // A bare number ("Sky 122", "Sky 2") is a take or tempo label when the plain title ("Sky") is also
-// there, when the numbered files share a folder ("Sketch 1", "Sketch 2"), or when one file's numbers
-// contain the other's ("… 80 Project" and "… 80 1"). Numbered files in different folders with no
+// there, when the numbered files share a folder ("Sketch 1", "Sketch 2"), when one file's numbers
+// contain the other's ("… 80 Project" and "… 80 1"), or when both are takes (30 or under). Numbered files in different folders with no
 // plain title and no shared number ("Sky Night 21", "Sky Night 41") stay apart: precision first, and
 // similar names alone never merge. Without folder information nothing is split.
 function numberSet(text) {
@@ -156,6 +158,12 @@ function numbersContain(a, b) {
     return small.size > 0 && [...small].every((number) => large.has(number));
 }
 
+// Single-digit takes ("Sample 1", "Sample 3") are versions wherever they are; larger numbers in
+// different folders ("Sky Night 1" and "Sky Night 21", tempos) are not. Such a join is checked, never sure.
+function bothTakes(a, b) {
+    return [...numberSet(a), ...numberSet(b)].every((number) => Number(number) >= 1 && Number(number) <= 9);
+}
+
 function commonNumbers(numbers) {
     const sets = [...numbers].map(numberSet);
     return [...sets[0]].filter((number) => sets.every((set) => set.has(number))).join(' ');
@@ -165,9 +173,11 @@ function splitByNumber(entries) {
     if (entries.some((entry) => !entry.analysis.bareNumber || !entry.file.sourceContainerId)) return [{ numberKey: '', entries }];
     const parts = [];
     for (const entry of entries) {
-        const touching = parts.filter((part) => [...part.numbers].some((number) => numbersContain(number, entry.analysis.bareNumber)) || part.folders.has(entry.file.sourceContainerId));
-        const merged = { numbers: new Set([entry.analysis.bareNumber]), folders: new Set([entry.file.sourceContainerId]), entries: [entry] };
+        const touching = parts.filter((part) => [...part.numbers].some((number) => numbersContain(number, entry.analysis.bareNumber) || bothTakes(number, entry.analysis.bareNumber)) || part.folders.has(entry.file.sourceContainerId));
+        const merged = { numbers: new Set([entry.analysis.bareNumber]), folders: new Set([entry.file.sourceContainerId]), entries: [entry], takeJoin: false };
         for (const part of touching) {
+            if (!part.folders.has(entry.file.sourceContainerId) && ![...part.numbers].some((number) => numbersContain(number, entry.analysis.bareNumber))) merged.takeJoin = true;
+            if (part.takeJoin) merged.takeJoin = true;
             part.numbers.forEach((number) => merged.numbers.add(number));
             part.folders.forEach((folder) => merged.folders.add(folder));
             merged.entries.unshift(...part.entries);
@@ -175,7 +185,7 @@ function splitByNumber(entries) {
         }
         parts.push(merged);
     }
-    return parts.map((part) => ({ numberKey: commonNumbers(part.numbers), entries: part.entries }));
+    return parts.map((part) => ({ numberKey: commonNumbers(part.numbers), entries: part.entries, takeJoin: part.takeJoin }));
 }
 
 // Different clients or collaborators under one title stay apart; files without a prefix join the
@@ -187,6 +197,15 @@ function splitByNamespace(entries) {
         if (!namespace) continue;
         if (!named.has(namespace)) named.set(namespace, []);
         named.get(namespace).push(entry);
+    }
+    // Course material keeps its kind: unprefixed files never join a course-prefixed group ("ZQT -
+    // Nimbus Demo" stays course; "Nimbus - WIP 1" files stay the song). The pair goes to review.
+    if (named.size === 1 && [...named.values()][0].every((entry) => entry.course) && entries.some((entry) => !entry.analysis.namespace)) {
+        const twin = `course-twin:${[...named.keys()][0]}:${entries[0].analysis.title}`;
+        return [
+            { entries: [...named.values()][0], namespaceConflict: false, courseTwin: twin, courseSide: true },
+            { entries: entries.filter((entry) => !entry.analysis.namespace), namespaceConflict: false, courseTwin: twin }
+        ];
     }
     if (named.size <= 1) return [{ entries, namespaceConflict: false }];
     const unprefixed = entries.filter((entry) => !entry.analysis.namespace);
@@ -222,7 +241,7 @@ function groupCatalog(files, options = {}) {
     const groups = [];
     for (const [key, bucketEntries] of buckets) {
         for (const numbered of splitByNumber(bucketEntries)) {
-            for (const part of splitByNamespace(numbered.entries)) groups.push({ key, numberKey: numbered.numberKey, entries: part.entries, stems: [], namespaceConflict: part.namespaceConflict });
+            for (const part of splitByNamespace(numbered.entries)) groups.push({ key, numberKey: numbered.numberKey, takeJoin: numbered.takeJoin, entries: part.entries, stems: [], namespaceConflict: part.namespaceConflict, courseTwin: part.courseTwin, courseSide: part.courseSide, review: part.courseSide ? 'Course material with the same title as a song: a course demo of that song? Kept apart; please decide.' : undefined });
         }
     }
 
@@ -258,12 +277,17 @@ function groupCatalog(files, options = {}) {
         }
     }
     groups.push(...stemOnly.values());
+    attachStemSets(groups);
 
     attachExportBatches(groups, links);
     const looseStems = settleLoneStems(groups);
+    consolidatePacks(groups);
     const songs = groups.map((group) => buildSong(group, { mergeRule, links }));
+    // The live song list while scanning needs names only.
+    if (options.preview) return { songs, looseStems, context: { namespaces, contributors, courseSuggestions: [] } };
     makeNamesUnique(songs);
     proposeSimilarNames(songs);
+    linkCourseTwins(songs, groups);
     applyClueLinks(songs, links, mergeRule);
     matchExistingSongs(songs, existingSongs);
     const courseSuggestions = detectCoursePrefixes(files, { contributors, known: courseNamespaces, declined: declinedCoursePrefixes });
@@ -301,14 +325,61 @@ function attachExportBatches(groups, links) {
     for (let index = groups.length - 1; index >= 0; index -= 1) if (!groups[index].entries.length && !groups[index].stems.length) groups.splice(index, 1);
 }
 
-// A stem set of one stem is a lone stem. After the exact name and the export batch, it may join a
-// song in the same folder whose title begins or ends its own ("Glasshouse" for "Glasshouse Choir
-// Take"); otherwise it is a loose stem for review, never an entry of its own.
+// A stem set joins the one song of its series with the same date ("Morning 5 - Thursday Nov 2" for
+// "... Nov 2 Piano pt 2 vox"), or the one song whose title begins or extends its own by stem,
+// render, process and number words only ("Rising Tide" for "Rising Tide just strings").
+// "Sky Structure" never reaches "Sky": "structure" is none of those words.
+const EXTRA_OK = new Set(['just', 'only', 'pt', 'part', 'take', 'and', 'with', 'w', 'sample', 'samples']);
+
+function isExtraWord(word) {
+    return /^\d+$/.test(word) || EXTRA_OK.has(word) || namePolicy.stemWords.includes(word) || namePolicy.stemSecondaryWords.includes(word) || namePolicy.renderWords.includes(word);
+}
+
+function dateOf(title) {
+    const words = title.split(' ');
+    for (let index = 0; index < words.length; index += 1) {
+        if (!namePolicy.months.includes(words[index])) continue;
+        const day = [words[index - 1], words[index + 1]].find((word) => /^\d{1,2}$/.test(word || ''));
+        if (day) return `${words[index]} ${day}`;
+    }
+    return null;
+}
+
+function attachStemSets(groups) {
+    const songs = groups.filter((group) => !group.stemOnly && group.key.startsWith('title:') && group.entries.length);
+    for (let index = groups.length - 1; index >= 0; index -= 1) {
+        const set = groups[index];
+        if (!set.stemOnly || set.stems.some((stem) => stem.packOneShot)) continue;
+        const first = set.stems[0].analysis;
+        const title = first.title;
+        const same = (group) => (group.entries[0].analysis.namespace || '') === (first.namespace || '') && (group.entries[0].analysis.category || '') === (first.category || '');
+        const date = dateOf(title);
+        let candidates = date ? songs.filter((group) => same(group) && dateOf(group.entries[0].analysis.title) === date) : [];
+        if (candidates.length !== 1) {
+            candidates = songs.filter((group) => {
+                if (!same(group)) return false;
+                const other = group.entries[0].analysis.title;
+                const [shorter, longer] = other.length <= title.length ? [other, title] : [title, other];
+                return shorter && longer.startsWith(`${shorter} `) && longer.slice(shorter.length + 1).split(' ').every(isExtraWord);
+            });
+        }
+        if (candidates.length !== 1) continue;
+        candidates[0].stems.push(...set.stems.map((stem) => ({ ...stem, viaTitle: true })));
+        groups.splice(index, 1);
+    }
+}
+
+// A part word ("vox", "piano", "strings only") makes a file a stem only when the rest of its song
+// exists: a bounce, an instrumental or other stems from the same session. A single stem tries, in
+// order, a song in its folder whose title begins or ends its own, then the one song with the same
+// title (or that title plus part words) in any series ("Saturday night lantern heaven vox" →
+// "Jam - Saturday Night - Lantern Heaven"). Otherwise it is an idea of its own and becomes a song.
+// Only a stem that fits several songs equally is left for review as a loose stem.
 function settleLoneStems(groups) {
     const loose = [];
     const songsInFolder = new Map();
-    for (const group of groups) {
-        if (group.stemOnly || !group.key.startsWith('title:')) continue;
+    const songs = groups.filter((group) => !group.stemOnly && group.key.startsWith('title:') && group.entries.length);
+    for (const group of songs) {
         for (const entry of group.entries) {
             const folder = entry.file.sourceContainerId;
             if (!folder) continue;
@@ -323,24 +394,134 @@ function settleLoneStems(groups) {
         // One-shots and stems named as templates, course or sample-pack material keep that kind.
         if (stem.packOneShot || fileKind(stem) !== 'song') continue;
         const title = stem.analysis.title;
-        const near = [...(songsInFolder.get(stem.file.sourceContainerId) || [])].filter((candidate) => {
+        const sameNamespace = (candidate) => candidate.entries.some((entry) => (entry.analysis.namespace || '') === (stem.analysis.namespace || ''));
+        let near = [...(songsInFolder.get(stem.file.sourceContainerId) || [])].filter((candidate) => {
             const other = candidate.entries[0].analysis.title;
-            const sameNamespace = candidate.entries.some((entry) => entry.analysis.namespace === stem.analysis.namespace);
-            return sameNamespace && other && (title.startsWith(`${other} `) || title.endsWith(` ${other}`) || other.startsWith(`${title} `));
+            return sameNamespace(candidate) && other && (title.startsWith(`${other} `) || title.endsWith(` ${other}`) || other.startsWith(`${title} `));
         });
-        groups.splice(index, 1);
-        if (near.length === 1) near[0].stems.push({ ...stem, viaFolder: true });
-        else loose.push({ ...stem.file, stemPart: stem.analysis.stemPart || null, reason: near.length > 1 ? 'Several songs in its folder have a similar name; choose one in review.' : 'A stem with no song of the same name in its folder or export batch.' });
+        let via = 'viaFolder';
+        if (near.length === 0) {
+            near = songs.filter((candidate) => {
+                const other = candidate.entries[0].analysis.title;
+                if (!other || !sameNamespace(candidate)) return false;
+                if (stem.analysis.category && (candidate.entries[0].analysis.category || '') !== stem.analysis.category) return false;
+                if (other === title) return true;
+                const [shorter, longer] = other.length <= title.length ? [other, title] : [title, other];
+                return longer.startsWith(`${shorter} `) && longer.slice(shorter.length + 1).split(' ').every(isExtraWord) && shorter.split(' ').length >= 2;
+            });
+            via = 'viaTitle';
+        }
+        if (near.length === 1) {
+            groups.splice(index, 1);
+            near[0].stems.push({ ...stem, [via]: true });
+        } else if (near.length > 1) {
+            groups.splice(index, 1);
+            loose.push({ ...stem.file, stemPart: stem.analysis.stemPart || null, reason: 'Several songs have this name; choose one in review.' });
+        } else {
+            // Nothing else from this song exists: an idea of its own (for example a voice memo with vocals).
+            group.stemOnly = false;
+            group.standaloneIdea = true;
+            group.entries = [{ ...stem, analysis: { ...stem.analysis, isStemName: false } }];
+            group.stems = [];
+        }
     }
     return loose;
+}
+
+// ── Sample packs: one pack, one entry ──
+// Sample-pack groups merge when they share a prefix and a folder ("Storm - Claps", "Storm - Kick" …), or a
+// distinctive word spelled almost the same ("Nyckelharpa", "Nyckelharp"; "Gargoyle") with a prefix or a
+// folder in common. Other entries with the pack's prefix in its folder of one-shots, or with its
+// distinctive word, go to review: part of the pack, or a song? The lab does not guess.
+const PACK_GENERIC = new Set(KINDS.packGenericWords);
+
+function packInfo(group) {
+    const all = [...group.entries, ...group.stems];
+    const first = all[0];
+    const prefixRaw = segmentsOf(preClean(first.file.name))[0] || [];
+    const prefix = first.analysis.namespace || (segmentsOf(preClean(first.file.name)).length > 1 ? prefixRaw.join(' ') : '');
+    const folders = new Set(all.map((entry) => entry.file.sourceContainerId).filter(Boolean));
+    const words = new Set(all.flatMap((entry) => tokenize(preClean(entry.file.name))).filter((word) => word.length >= 5 && !/\d/.test(word) && !PACK_GENERIC.has(word) && word !== prefix));
+    return { prefix, folders, words };
+}
+
+function shareWord(a, b) {
+    for (const x of a.words) for (const y of b.words) if (x === y || (Math.abs(x.length - y.length) <= 2 && jaroWinkler(x, y) >= 0.92)) return true;
+    return false;
+}
+
+function shareFolder(a, b) {
+    return [...a.folders].some((folder) => b.folders.has(folder));
+}
+
+function packName(groupsInPack) {
+    const all = groupsInPack.flatMap((group) => [...group.entries, ...group.stems]);
+    const segments = all.map((entry) => segmentsOf(preClean(entry.file.name)).map((tokens) => tokens.join(' ')));
+    const prefixes = new Set(segments.map((list) => (list.length > 1 ? list[0] : '')));
+    if (prefixes.size === 1 && [...prefixes][0]) {
+        const prefix = [...prefixes][0];
+        const second = new Map();
+        for (const list of segments) if (list.length > 2) second.set(list[1], (second.get(list[1]) || 0) + 1);
+        const [top, count] = [...second.entries()].sort((a, b) => b[1] - a[1])[0] || [];
+        return titleCase(top && count * 2 >= all.length ? `${prefix} - ${top}` : prefix);
+    }
+    // No shared prefix: the words every member's name has ("Gargoyle Patches").
+    const lists = groupsInPack.map((group) => tokenize(preClean([...group.entries, ...group.stems][0].file.name)));
+    const shared = lists[0].filter((word) => lists.every((list) => list.includes(word)) && !/\d/.test(word));
+    return shared.length ? titleCase(shared.join(' ')) : null;
+}
+
+function consolidatePacks(groups) {
+    const packs = groups.filter((group) => kindOf(group) === 'sample-pack').map((group) => ({ group, info: packInfo(group) }));
+    const parent = packs.map((_, index) => index);
+    const find = (index) => (parent[index] === index ? index : (parent[index] = find(parent[index])));
+    for (let i = 0; i < packs.length; i += 1) {
+        for (let j = i + 1; j < packs.length; j += 1) {
+            const a = packs[i].info;
+            const b = packs[j].info;
+            const samePrefix = a.prefix && a.prefix === b.prefix;
+            if ((samePrefix && shareFolder(a, b)) || (shareWord(a, b) && (samePrefix || shareFolder(a, b)))) parent[find(i)] = find(j);
+        }
+    }
+    const byRoot = new Map();
+    packs.forEach((pack, index) => {
+        if (!byRoot.has(find(index))) byRoot.set(find(index), []);
+        byRoot.get(find(index)).push(pack);
+    });
+    const merged = [];
+    for (const members of byRoot.values()) {
+        const target = members[0].group;
+        target.forcedKind = 'sample-pack';
+        if (members.length > 1) {
+            const name = packName(members.map((member) => member.group));
+            const strip = (text) => (name && text.toLowerCase().startsWith(`${name.toLowerCase()} - `) ? text.slice(name.length + 3) : text);
+            target.packContents = members.map((member) => strip(displayNameFor(member.group, ''))).filter(Boolean);
+            target.packName = name;
+            for (const member of members.slice(1)) {
+                target.entries.push(...member.group.entries);
+                target.stems.push(...member.group.stems);
+                groups.splice(groups.indexOf(member.group), 1);
+            }
+        }
+        merged.push({ group: target, info: packInfo(target), oneShots: [...target.entries, ...target.stems].some((entry) => entry.packOneShot) });
+    }
+    // Neighbours of a pack go to review.
+    for (const group of groups) {
+        if (group.forcedKind === 'sample-pack') continue;
+        const info = packInfo(group);
+        // In a folder of one-shots with the pack's prefix, or sharing the pack's distinctive word.
+        const pack = merged.find((candidate) => info.prefix && info.prefix === candidate.info.prefix && ((candidate.oneShots && shareFolder(info, candidate.info)) || shareWord(info, candidate.info)));
+        if (pack) group.review = `Beside the sample pack “${pack.group.packName || displayNameFor(pack.group, '')}”: part of the pack, or a song of its own? Please decide.`;
+    }
 }
 
 // ── Display names (IMP-FN-007-R14) ──
 // The canonical identity is for comparison only. A song is shown under the producer's own, most
 // complete title with only the noise taken out: formats, specs, the backup marker, version, stage,
-// render and edit words, takes and tempos, repeats and stem parts. Series, dates, categories,
-// clients and contributors stay ("Morning 5 - Monday Nov 27", not "Nov 27").
-const NOISE_RULES = new Set(['format', 'tech', 'marker', 'version', 'stage', 'render', 'edit', 'repeat', 'descriptor', 'stem']);
+// render and edit words, takes and tempos, repeats, stem parts and contributors named inside a
+// version ("… Theo Adds"). Series, dates, categories and clients stay ("Morning 5 - Monday Nov 27",
+// not "Nov 27").
+const NOISE_RULES = new Set(['format', 'tech', 'marker', 'version', 'stage', 'render', 'edit', 'repeat', 'descriptor', 'stem', 'contributor']);
 // When the full clean leaves one word, a lighter clean keeps the producer's fuller title.
 const LIGHT_NOISE_RULES = new Set(['format', 'tech', 'marker', 'version', 'stage']);
 
@@ -363,8 +544,10 @@ function cleanDisplayName(entry, keepNumbers = [], rules = NOISE_RULES) {
             segments[s].splice(t, 1);
         }
     }
+    // A contributor's pattern word left at the end ("… For", "… Feat") goes with the name.
+    for (const tokens of segments) while (tokens.length > 1 && ['for', 'feat', 'ft', 'w', 'with'].includes(tokens[tokens.length - 1])) tokens.pop();
     return segments
-        .filter((tokens) => tokens.length)
+        .filter((tokens) => tokens.length && !(tokens.length === 1 && ['for', 'feat', 'ft', 'w', 'with'].includes(tokens[0])))
         .map((tokens) => titleCase(tokens.join(' ')))
         .join(' - ');
 }
@@ -394,6 +577,9 @@ function sharedName(source) {
 function displayNameFor(group, fallback) {
     const source = group.entries.length ? group.entries : group.stems;
     const keepNumbers = [...numberSet(group.numberKey)];
+    if (group.packName) return group.packName;
+    // A standalone idea keeps its part words ("Kelp Piano Vox").
+    if (group.standaloneIdea) return bestName(source, keepNumbers, LIGHT_NOISE_RULES) || fallback;
     // One-shots keep their sound's name ("Big Snare").
     if (source.every((entry) => entry.packOneShot)) return bestName(source, keepNumbers, new Set([...NOISE_RULES].filter((rule) => rule !== 'stem'))) || fallback;
     if (group.stemOnly && source.length > 1 && new Set(source.map((entry) => preClean(entry.file.name))).size > 1) {
@@ -456,11 +642,14 @@ function fileKind(entry) {
     const text = [...tokens].join(' ');
     if (KINDS.templateWords.some((word) => tokens.has(word))) return 'template';
     if (KINDS.courseWords.some((word) => tokens.has(word)) || entry.course) return 'course';
+    // A jam or idea word outranks pack words ("Synth Jam - Testing Out Pulsar Patches" is a jam).
+    if (KINDS.ideaWords.some((word) => tokens.has(word))) return 'song';
     if (KINDS.samplePackWords.some((word) => tokens.has(word)) || KINDS.samplePackPhrases.some((phrase) => text.includes(phrase))) return 'sample-pack';
     return 'song';
 }
 
 function kindOf(group) {
+    if (group.forcedKind) return group.forcedKind;
     const all = [...group.entries, ...group.stems];
     if (all.every((entry) => entry.packOneShot)) return 'sample-pack';
     const counts = {};
@@ -538,11 +727,16 @@ function buildSong(group, { mergeRule }) {
     }
     if (group.namespaceConflict) reasons.push({ clue: 'canonical-name', weight: 0, text: 'Another client or collaborator prefix uses the same title, so they are kept apart for a check.' });
     if (group.stemOnly) reasons.push({ clue: 'stem-set', weight: 0, text: 'Stems with no bounce or project of the same name: shown as a stem set, not as a song.' });
+    if (group.packContents) reasons.push({ clue: 'canonical-name', weight: 0, text: `One sample pack: ${group.packContents.join(', ')}.` });
+    if (group.review) reasons.push({ clue: 'canonical-name', weight: 0, text: group.review });
+    if (group.standaloneIdea) reasons.push({ clue: 'canonical-name', weight: 0, text: 'Named like a part (vox, piano, strings…), but nothing else from this song exists, so it is an idea of its own.' });
 
     const confidence = anchors.length ? 1 - (1 - identityConfidence) * otherConfidence : 0.3;
     const bands = scoring.bands;
     let band;
-    if (group.stemOnly || first.analysis.weak) band = 'unclear';
+    if (group.takeJoin) reasons.push({ clue: 'canonical-name', weight: 0, text: 'Takes with different numbers in different folders: joined as versions, please check.' });
+    if (group.stemOnly || first.analysis.weak || group.review) band = 'unclear';
+    else if (group.takeJoin) band = 'unsure';
     else if (first.analysis.generic) band = anchors.length > 1 ? 'unsure' : 'sure';
     else if (group.namespaceConflict) band = 'unsure';
     else if (exact || (anchors.length <= 1 && !group.stems.some((stem) => stem.viaBatch))) band = 'sure';
@@ -572,6 +766,7 @@ function buildSong(group, { mergeRule }) {
         versions,
         stemSets: stemSets(group.stems, anchors, latestId),
         possibleMatches: [],
+        review: Boolean(group.review),
         facts: {},
         decidedBy: 'rules',
         isAnchor: anchors.some((entry) => entry.file.type === 'bounces' || entry.file.type === 'projects'),
@@ -613,8 +808,9 @@ function proposeSimilarNames(songs) {
         for (let j = i + 1; j < candidates.length; j += 1) {
             const a = candidates[i];
             const b = candidates[j];
-            if ((a._namespace || '') !== (b._namespace || '')) continue;
-            const similar = similarReason(a._title, b._title);
+            // Under different prefixes only a word-by-word misspelling is suggested ("Sailin Slow Driftin
+            // Home" for "Sailing Sloww Drifting Home": possibly the vocal of the same song).
+            const similar = (a._namespace || '') === (b._namespace || '') ? similarReason(a._title, b._title) || wordByWordReason(a._title, b._title) : wordByWordReason(a._title, b._title);
             if (!similar) continue;
             addMatch(a, b, similar.reason, similar.weight);
         }
@@ -631,6 +827,28 @@ function similarReason(a, b) {
     if (longer.startsWith(`${shorter} `) && longer.split(' ').length === shorter.split(' ').length + 1) return { reason: `“${longer}” is “${shorter}” plus one word.`, weight: 0.75 };
     if (Math.abs(a.length - b.length) <= 2 && jaroWinkler(a, b) >= scoring.similarNames.jaroWinkler && !isGenericTitle(a)) return { reason: 'Names are spelled almost the same.', weight: 0.85 };
     return null;
+}
+
+// Same number of words (three or more, after up to two leading prefix words), each pair spelled
+// almost the same, at least one different.
+function wordByWordReason(a, b) {
+    let left = a.split(' ');
+    let right = b.split(' ');
+    // A prefix the catalog has not learned ("Quill sailin slow …") may lead the longer title.
+    if (Math.abs(left.length - right.length) <= 2) [left, right] = left.length > right.length ? [left.slice(left.length - right.length), right] : [left, right.slice(right.length - left.length)];
+    if (left.join(' ') === right.join(' ') || left.length < 3 || left.length !== right.length) return null;
+    const close = left.every((word, index) => word === right[index] || (word.length >= 3 && right[index].length >= 3 && !/\d/.test(word + right[index]) && jaroWinkler(word, right[index]) >= 0.88));
+    return close ? { reason: 'The words are spelled almost the same, one by one.', weight: 0.7 } : null;
+}
+
+function linkCourseTwins(songs, groups) {
+    const byTwin = new Map();
+    groups.forEach((group, index) => {
+        if (!group.courseTwin) return;
+        if (!byTwin.has(group.courseTwin)) byTwin.set(group.courseTwin, []);
+        byTwin.get(group.courseTwin).push(songs[index]);
+    });
+    for (const pair of byTwin.values()) if (pair.length === 2) addMatch(pair[0], pair[1], 'Course material with the same title: perhaps a course demo of this song.', 0.8);
 }
 
 function addMatch(a, b, reason, weight) {

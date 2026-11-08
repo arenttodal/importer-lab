@@ -26,7 +26,11 @@ const EDIT_PATTERNS = policy.editPatterns.map((pattern) => new RegExp(pattern));
 const VERSION_PATTERNS = policy.versionPatterns.map((pattern) => new RegExp(pattern));
 const VERSION_WORDS = set(policy.versionWords);
 const STEM_MARKERS = set(policy.stemMarkers);
-const STEM_WORDS = set([...policy.stemWords, ...STEM_TOKENS]);
+const BASE_STEM_WORDS = set([...policy.stemWords, ...STEM_TOKENS]);
+// A stem word with a mix-process suffix is a stem word too ("PianoCLN", "PianoFX", "VoxWet").
+const STEM_WORDS = {
+    has: (token) => BASE_STEM_WORDS.has(token) || policy.stemProcessSuffixes.some((suffix) => token.length > suffix.length + 2 && token.endsWith(suffix) && BASE_STEM_WORDS.has(token.slice(0, -suffix.length)))
+};
 const STEM_SECONDARY = set(policy.stemSecondaryWords);
 const MONTHS = set(policy.months);
 const WEEKDAYS = set(policy.weekdays);
@@ -106,8 +110,13 @@ function isStemSegment(tokens) {
 // version word ("- Final Master 1.1", "- WIP 1", "- 128 Loop"), when every word in it is one the
 // policy sets aside ("- Reverse"), or when it starts with an instrument and carries a stage or
 // version word ("- Orch Adds 1.4"). "- Guitar Jam W Pedals" or "- Alt Rock Bey" stay title.
+// Words that only come off the end of a title ("Theo Adds Combined"); at the start of a segment they
+// begin a title ("- Combined Patterns - Waltzes").
+const TRAILING_ONLY = set(policy.trailingOnlyWords || []);
+
 function isLabelSegment(tokens, options) {
     const first = tokens[0];
+    if (TRAILING_ONLY.has(first)) return false;
     const rule = wordRule(first, options);
     if (['stage', 'edit', 'version', 'tech', 'format'].includes(rule)) return true;
     const phrase = phraseAt(tokens, 0);
@@ -223,6 +232,9 @@ function analyseName(file, ctx, options = {}) {
         const out = list.map((tokens) => [...tokens]);
         if (out.length > 1 && isStemSegment(out[out.length - 1])) {
             stemPart = out.pop().filter((token) => !STEM_MARKERS.has(token) && !isNumber(token)).join(' ');
+            // "… Arn Stems - Hits": the marker before the part is not title.
+            const last = out[out.length - 1];
+            while (last.length > 1 && STEM_MARKERS.has(last[last.length - 1])) last.pop();
         }
         for (let s = 0; s < out.length && !stemPart; s += 1) {
             const at = out[s].findIndex((token, index) => STEM_MARKERS.has(token) && (s > 0 || index > 0));
@@ -251,12 +263,19 @@ function analyseName(file, ctx, options = {}) {
 
     // 4. Title = segments up to the first label segment; the rest is the version label.
     function titleOf(list) {
-        const titleTokens = [];
-        const label = [];
+        let titleTokens = [];
+        let label = [];
         list.forEach((tokens, index) => {
             if (label.length || (index > 0 && isLabelSegment(tokens, options))) label.push(...tokens);
             else titleTokens.push(...tokens);
         });
+        // A version token after the title has begun ends it: "Glass Track Remake V2 New Piano" is
+        // "Glass Track Remake" in version "V2 New Piano" (the stage word "remake" comes off later).
+        const at = titleTokens.findIndex((token, index) => index > 0 && matchesAny(VERSION_PATTERNS, token));
+        if (at > 0 && !isWeakTitle(titleTokens.slice(0, at))) {
+            label = [...titleTokens.slice(at), ...label];
+            titleTokens = titleTokens.slice(0, at);
+        }
         return { titleTokens, label };
     }
 
@@ -274,7 +293,8 @@ function analyseName(file, ctx, options = {}) {
     if (stem.stemPart) setAside('stem', stem.stemPart.split(' '));
 
     // 5–6. Clean the title: repeats, contributors, trailing stage/render/edit/version words, dates.
-    const title = reduceTitle(titleTokens, ctx, options, setAside, namespace);
+    // Idea words count the same in plural ("Piano Ideas" is "Piano Idea"); other plurals only suggest.
+    const title = reduceTitle(titleTokens, ctx, options, setAside, namespace).map((token) => policy.pluralSameAs[token] || token);
     const generic = title.length > 0 && isGenericTitle(title.join(' '));
     // A title that names a day ("friday april 21") only identifies a song within its series.
     const dateLength = trailingDateLength(title);

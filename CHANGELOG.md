@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.2.0-dev.7 — 2026-11-08 (stems, packs and the weighted check)
+
+Measured on the dev.6 results from a real catalog (replay with folders, dates and sizes; course
+prefixes confirmed), dev.6 engine → dev.7 engine. The group-by-group list with real names is kept in
+the git-ignored `private/` folder.
+
+| Fix | Before → after |
+| --- | --- |
+| 1. Stems and versions join their song | a remade song shown as 10 entries (today's importer: 9) → 1 song with versions and stems; stem sets 14 → 7 (7 attach by title or date, 2 go to review, 5 have no song) |
+| 2. One pack, one entry | sample-pack entries 22 → 9; a one-shot pack 8 → 1 with its contents; three multi-folder packs 3 → 1 each; a folder of drum one-shots counted as 5 songs → 1 pack; 5 neighbours of packs go to review; a jam named "… Patches" is a song |
+| 3. Part words make a stem only when the rest of the song exists | loose stems 26 → 0: 1 joins its jam, 2 form one recording's stem set, 1 joins its pack, 22 are ideas of their own |
+| 4. Course material keeps its kind | a course demo that pulled an 18-file song into a course-named group: song (18) + course item (1, in review, suggested against the song) |
+| 5. Takes and plurals | 4 groups join as versions (one "Ideas"/"Idea" pair, three take pairs); a take join across folders is "check", never "sure" |
+| 6. Weighted check | sessions of 50: 40% to check, 20% unclear, 25% sure with several files, 15% sure single-file; closest entries with "Same song"; Metrics shows the exact 95% lower bound (27 of 27 → at least 89%); target 100 marks |
+| 7. Scan from scratch | Lab option and `--from-scratch`; fresh-scan timings come from the producer's next scan |
+
+Songs 869 → 856. Of the 27 songs the producer marked right in dev.6, 25 are unchanged and 2 gained
+version files with nothing removed. The three cases the producer confirmed (private answer key) pass.
+
+Lab regressions found while building this and fixed before release:
+- Takes 1–30 joining across folders merged "Sky Night 1" with "Sky Night 21" on the stress set as
+  "sure"; now only single-digit takes join across folders, and never as "sure".
+- "Combined" as a stage word turned "… - Combined Patterns - …" into a version label; it now only
+  comes off the end of a title.
+- The sibling-stem rule turned "… - MASTER" mixes into stems; a last part made only of stage words is
+  the mix.
+- The live song list ran the full grouping on every preview (3.8 s on 10,000 files); it now groups
+  names only (1.7 s).
+
+Also: name policy `lab-names-3`; word-by-word misspellings suggested across prefixes (never joined);
+display names drop a contributor named inside a version ("… Theo Adds").
+
 ## 0.2.0-dev.6 — 2026-11-07 (fixes after the first real M2 scan)
 
 Build dev.5 stopped in CI (the workspace still asked for contract 1.1.0); dev.6 is the same code with
