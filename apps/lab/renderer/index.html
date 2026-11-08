@@ -135,13 +135,12 @@
                         <div class="std-alert-text"><span id="unreadableText"></span> <button id="openPrivacy" class="std-inline-btn" type="button">Open System Settings</button></div>
                     </div>
                 </div>
-                <div id="courseAlert" class="std-alert std-alert--info lab-alert" hidden>
+                <div id="questionsAlert" class="std-alert std-alert--info lab-alert" hidden>
                     <div class="std-alert-body">
-                        <div class="std-alert-title">Looks like course material: <span id="courseList"></span>. Confirm?</div>
+                        <div class="std-alert-title">Teach the importer: <span id="questionsCount"></span></div>
                         <div class="std-alert-text">
-                            <span id="courseDetail"></span>
-                            <button id="courseConfirm" class="std-inline-btn" type="button">Yes, not songs — scan again</button>
-                            <button id="courseDecline" class="std-inline-btn" type="button">No, these are songs</button>
+                            <span id="questionsDetail"></span>
+                            <button id="questionsOpen" class="std-inline-btn" type="button">Answer</button>
                         </div>
                     </div>
                 </div>
@@ -231,6 +230,7 @@
                     <div class="std-segmented" role="tablist" aria-label="Lab sections">
                         <button class="std-segment is-active" data-lab="compare">Compare with today's importer</button>
                         <button class="std-segment" data-lab="options">Scan options</button>
+                        <button class="std-segment" data-lab="rules">Rules</button>
                         <button class="std-segment" data-lab="metrics">Metrics</button>
                         <button class="std-segment" data-lab="logs">Logs</button>
                     </div>
@@ -249,6 +249,22 @@
                         <tbody id="compareRows"></tbody>
                     </table>
                 </div>
+                <div data-lab-panel="rules" hidden>
+                    <div class="lab-column">
+                        <p class="lab-lede">Your answers and your marks become rules, applied first on the next scan. Names only; nothing in your folders changes.</p>
+                        <div class="std-modal-section-label">What words in your catalog mean</div>
+                        <div id="rulesPrefixes" class="std-list"></div>
+                        <button id="rulesAsk" class="std-modal-btn std-modal-btn--secondary" type="button">Answer the open questions</button>
+                        <div class="std-modal-section-label lab-spaced">Rules from your marks</div>
+                        <p id="rulesFromMarks" class="lab-muted"></p>
+                        <label class="std-toggle">
+                            <input id="rulesUseMarks" class="std-toggle-input" type="checkbox" />
+                            <span class="std-toggle-rail"></span>
+                            <span class="std-toggle-label">Use my marks as rules on the next scan</span>
+                        </label>
+                    </div>
+                </div>
+
                 <div data-lab-panel="options" hidden>
                     <div class="lab-column">
                         <div class="std-form-row">

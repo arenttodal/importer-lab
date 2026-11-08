@@ -22,6 +22,8 @@ that changed the status.
 | Not counted as songs (course prefixes found by the lab and confirmed) | — | 54 course items, 23 sample packs, 22 templates, 14 stem sets, 26 loose stems in one review entry |
 | Scan time, same catalog | 1.0 s (first run, 0.1.0-dev.2) | 1.4 s on a repeat scan with stored results (0 files opened; today's importer itself 0.17 s of it, both modes) |
 | Random check of 30 songs by the producer | — | 27 answered, 27 right (3 skipped); 12 of the 27 hold more than one file, 4 were in "Check these first". With 0 wrong in 27 the error rate is below about 11% (95%, rule of three); a larger sample is needed for the 99.5% target |
+| The same producer's 2025 catalog (1,291 files), replay with the 0.3.0 engine | 592 songs | 553 songs |
+| Random check of 46 songs on the 2025 catalog (weighted sample, 0.2.0-dev.7) | — | 35 right, 2 marked "split" (both later confirmed as mistakes), 9 "should be merged"; fixed in 0.3.0 and kept as the producer's answer key |
 | Synthetic stress set (1,000 songs, 10,000 files, 1,000 folders) | 980 songs, 24 of them merging different songs | 997 songs; no automatic merge of different songs |
 | False merges of different songs | rows 1, 26, 27 | 0 found: none automatic on the anonymised cases and the stress set, none marked on the real catalog |
 
@@ -62,7 +64,7 @@ same song" suggestions) are recorded in `CHANGELOG.md`, not here: this log is ab
 
 ## Guardrails (tested on every build)
 
-All pass in 0.2.0-dev.7 (`group.test.js`, `names.test.js`, `findings-cases.test.js`):
+All pass in 0.3.0 (`group.test.js`, `names.test.js`, `findings-cases.test.js`, `adversarial.test.js`, and the main app's six import test files):
 
 - "Sky", "Red Sky 116bpm" and "Ide Kareal Sky" are three songs; "Sky Structure" is not "Sky".
 - Each "Morning 5 <day>" is its own song; the same day in two series stays two songs.

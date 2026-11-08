@@ -1,5 +1,5 @@
 {
-    "version": "lab-names-3",
+    "version": "lab-names-4",
     "about": "Name policy for the Importer Lab engine. Works on the main app's preClean() output. Words listed here are set aside from the song identity and kept as version labels or stem parts. Changing anything here means a new version string.",
     "formatWords": [
         "wav",
@@ -520,5 +520,44 @@
         "ideas": "idea",
         "sketches": "sketch",
         "jams": "jam"
-    }
+    },
+    "sessionWords": [
+        "live",
+        "jam",
+        "jams",
+        "idea",
+        "ideas",
+        "piano",
+        "guitar",
+        "test",
+        "sketch",
+        "demo",
+        "untitled",
+        "intro",
+        "outro",
+        "loop",
+        "beat",
+        "session",
+        "morning",
+        "evening",
+        "night",
+        "take",
+        "recording",
+        "voice",
+        "memo",
+        "vo",
+        "vox",
+        "improv",
+        "practice",
+        "warmup",
+        "noodle",
+        "noodling",
+        "track",
+        "song",
+        "new",
+        "old",
+        "full",
+        "snippet",
+        "part"
+    ]
 }

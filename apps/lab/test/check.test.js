@@ -57,3 +57,13 @@ test('summary: counts, the bound, the weighted share and the strata', () => {
     assert.equal(summary.byStratum.unsure, 2);
     assert.equal(summary.target, 100);
 });
+
+test('summary per engine version, to compare builds', () => {
+    const marks = [
+        { kind: 'right', check: true, engineVersion: 'a' },
+        { kind: 'split', check: true, engineVersion: 'a' },
+        { kind: 'right', check: true, engineVersion: 'b' }
+    ];
+    const summary = summarize(marks);
+    assert.deepEqual([summary.byEngineVersion.a.answered, summary.byEngineVersion.a.right, summary.byEngineVersion.b.right], [2, 1, 1]);
+});

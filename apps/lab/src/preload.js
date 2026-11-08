@@ -41,6 +41,9 @@ contextBridge.exposeInMainWorld('labAPI', {
     exportResults: () => ipcRenderer.invoke('lab:export-results'),
     checkSample: () => ipcRenderer.invoke('lab:check-sample'),
     checkSummary: () => ipcRenderer.invoke('lab:check-summary'),
+    getRules: () => ipcRenderer.invoke('lab:get-rules'),
+    answerPrefixes: (answers) => ipcRenderer.invoke('lab:answer-prefixes', answers),
+    setUseMarks: (useMarks) => ipcRenderer.invoke('lab:set-use-marks', useMarks === true),
 
     onOpenSettings: subscribe('lab:open-settings'),
     onOpenLab: subscribe('lab:open-lab'),

@@ -17,7 +17,8 @@ const MARK_LABEL = {
     'wrong-song': { song: 'Not a real song', file: 'In the wrong song' },
     split: { song: 'Should be split' },
     merge: { song: 'Should be merged' },
-    right: { song: 'Right' }
+    right: { song: 'Right' },
+    rename: { song: 'Renamed' }
 };
 const LIVE_SONGS_SHOWN = 20;
 
@@ -306,7 +307,7 @@ function renderCatalog() {
     $('toggleOtherKinds').hidden = others.length === 0;
     $('toggleOtherKinds').textContent = state.showOtherKinds ? 'Hide templates, course material, sample packs and stem sets' : `Show what is not counted as songs (${summary})`;
     $('otherFiles').textContent = view.otherFiles ? `${view.otherFiles.toLocaleString()} other files (documents, images and so on) were left out.` : '';
-    renderCourseSuggestions(view);
+    renderQuestions(view);
     const unreadable = view.notes.unreadableFolders;
     $('unreadableAlert').hidden = unreadable === 0;
     $('unreadableText').textContent = `${unreadable} folder${unreadable === 1 ? ' was' : 's were'} not readable, probably because access was not allowed.`;
@@ -392,8 +393,17 @@ function refreshAfterMark() {
     if (state.song && !$('songTitle').closest('[data-screen]').hidden) renderSong();
 }
 
+// Song marks carry the song's file names, so they can become rules that survive renamed songs.
+function fileNamesOf(songName) {
+    const song = state.view?.songs.find((candidate) => candidate.name === songName);
+    if (!song) return null;
+    const byId = new Map(state.view.files.map((file) => [file.fileId, file.name]));
+    return song.fileIds.map((id) => byId.get(id)).filter(Boolean);
+}
+
 async function saveMark(input) {
-    const mark = await api.addMark(input);
+    const withNames = input.target === 'song' && !input.fileNames ? { ...input, fileNames: fileNamesOf(input.songName) } : input;
+    const mark = await api.addMark(withNames);
     state.marks.push(mark);
     refreshAfterMark();
     if (!input.check) window.showToast?.('Saved. Thank you — this goes in the results you send.', 'success');
@@ -420,8 +430,31 @@ function songMenu(anchor, song) {
             label: 'Should be merged with…',
             onSelect: async () => openMergePicker(song, await saveMark({ kind: 'merge', target: 'song', songName: song.name }))
         },
-        { label: 'Not a real song', onSelect: () => saveMark({ kind: 'wrong-song', target: 'song', songName: song.name }) }
+        { label: 'Not a real song', onSelect: () => saveMark({ kind: 'wrong-song', target: 'song', songName: song.name }) },
+        { label: 'Rename…', onSelect: () => openRename(song) }
     ]);
+}
+
+function openRename(song) {
+    const body = document.createElement('div');
+    body.innerHTML = `<input class="std-form-input" type="text" aria-label="New name" value="${escapeHtml(song.name)}" />`;
+    const input = body.querySelector('input');
+    const modal = window.createStandardModal({
+        archetype: 'standard',
+        title: 'Rename',
+        subtitle: 'The song is shown under this name from the next scan on (kept as a rule).',
+        body,
+        primaryAction: {
+            label: 'Save',
+            onClick: async () => {
+                const newName = input.value.trim();
+                if (newName && newName !== song.name) await saveMark({ kind: 'rename', target: 'song', songName: song.name, newName });
+                modal.close();
+            }
+        }
+    });
+    input.focus();
+    input.select();
 }
 
 function fileMenu(anchor, file) {
@@ -454,7 +487,7 @@ function openMergePicker(song, mark, afterSave = null) {
         primaryAction: {
             label: 'Save',
             onClick: async () => {
-                const updated = await api.updateMark(mark.id, { mergeWithSongName: chosen });
+                const updated = await api.updateMark(mark.id, { mergeWithSongName: chosen, mergeWithFileNames: fileNamesOf(chosen) });
                 Object.assign(state.marks.find((candidate) => candidate.id === mark.id), updated);
                 refreshAfterMark();
                 modal.close();
@@ -519,6 +552,7 @@ function openSettings() {
 }
 
 function showLabSection(section) {
+    if (section === 'rules') renderRules();
     for (const button of document.querySelectorAll('[data-lab]')) button.classList.toggle('is-active', button.dataset.lab === section);
     for (const panel of document.querySelectorAll('[data-lab-panel]')) panel.hidden = panel.dataset.labPanel !== section;
 }
@@ -533,7 +567,8 @@ function compareRows(view) {
         .map((song) => {
             const todays = [...new Set(song.fileIds.map((id) => todayOf.get(id)).filter(Boolean))];
             const outside = todays.some((group) => group.fileIds.some((id) => !song.fileIds.includes(id)));
-            const change = todays.length > 1 ? `Merged ${todays.length}` : outside ? 'Split from' : todays[0] && todays[0].songName !== song.name ? 'Renamed' : 'Same';
+            // Merged: whole songs of today's importer joined. Moved files: some files came out of another of today's songs.
+            const change = todays.length > 1 ? (outside ? 'Moved files' : `Merged ${todays.length}`) : outside ? 'Split from' : todays[0] && todays[0].songName !== song.name ? 'Renamed' : 'Same';
             return { song, todays, change };
         })
         .sort((a, b) => Number(a.change === 'Same') - Number(b.change === 'Same') || b.todays.length - a.todays.length || a.song.name.localeCompare(b.song.name));
@@ -568,6 +603,8 @@ function renderLab() {
             ['Files in sure songs', `${Math.round(view.stats.autoMatchedShare * 100)}%`],
             ['Not counted as songs', Object.entries(kinds).filter(([kind]) => kind !== 'song').map(([kind, number]) => `${number} ${KIND_LABEL[kind].toLowerCase()}`).join(', ') || 'none'],
             ['Checked songs (random, weighted sample)', confidenceText(summary)],
+            ...Object.entries(summary.byEngineVersion || {}).map(([version, stats]) => [`Checked with engine ${version}`, `${stats.right} of ${stats.answered} right (at least ${Math.floor(stats.lowerBound95 * 100)}%)`]),
+            ["Today's importer on the songs you checked", todayOnChecked(view)],
             ['Marks: should be split (false merges)', marks.filter((mark) => mark.kind === 'split').length],
             ['Marks: should be merged (false splits)', marks.filter((mark) => mark.kind === 'merge').length],
             ['Marks: file in the wrong song', marks.filter((mark) => mark.kind === 'wrong-song' && mark.target === 'file').length],
@@ -579,7 +616,7 @@ function renderLab() {
             ['Cloud placeholders (never opened)', view.notes.placeholdersFound],
             ['Reused from the last scan', view.notes.fromScratch ? 'none (scan from scratch)' : view.notes.reusedFromStore],
             ['Scan time', `${(view.stats.durationMs / 1000).toFixed(2)} s`],
-            ...timingRows(view.notes.timings || {}, view.notes.clueCounts || {}),
+            ...timingRows(view.notes.timings || {}, view.notes.clueCounts || {}, view.notes.readers || {}),
             ['AI cost', `$${view.stats.aiCostUsd.toFixed(2)}`],
             ['Engine / name and scoring policy', `${view.engineVersion} / ${view.policyVersion}`],
             ['Contract', view.contractVersion],
@@ -606,11 +643,17 @@ const TIMING_LABEL = {
     totalMs: 'Time: total'
 };
 
-function timingRows(timings, counts) {
+const READER_LABEL = { ableton: 'Ableton sets', abletonFolder: 'Ableton project folders', logic: 'Logic packages', audioHeader: 'WAV/AIFF lengths', other: 'Other files' };
+
+function timingRows(timings, counts, readers = {}) {
     const seconds = (ms) => `${(ms / 1000).toFixed(2)} s`;
     const rows = Object.keys(TIMING_LABEL)
         .filter((key) => typeof timings[key] === 'number')
         .map((key) => [TIMING_LABEL[key], seconds(timings[key])]);
+    for (const [reader, stats] of Object.entries(readers)) {
+        if (!stats.files) continue;
+        rows.push([`Reading: ${READER_LABEL[reader] || reader}`, `${stats.files} files, ${(stats.ms / 1000).toFixed(1)} s, ${stats.megabytes} MB, slowest ${(stats.slowestMs / 1000).toFixed(1)} s`]);
+    }
     if (typeof counts.filesOpened === 'number') {
         rows.push(['Files opened for clues / not opened (stored from the last scan, or in the cloud)', `${counts.filesOpened} / ${counts.filesNotOpened}`]);
         rows.push(['Same-size files: edge-checked / hashed in full', `${counts.sameSizeFilesChecked} / ${counts.filesHashedInFull}`]);
@@ -618,22 +661,78 @@ function timingRows(timings, counts) {
     return rows;
 }
 
-// Course and series prefixes the engine found: confirmed ones become course material on the next
-// scan; declined ones are never asked again. The manual setting (Lab options) stays an override.
-function renderCourseSuggestions(view) {
-    const found = (view.notes.courseSuggestions || []).filter((entry) => !(state.settings.scanOptions.declinedCoursePrefixes || []).includes(entry.prefix) && !(state.settings.scanOptions.courseNamespaces || []).includes(entry.prefix));
-    $('courseAlert').hidden = found.length === 0;
-    if (!found.length) return;
-    const shown = (prefix) => prefix.replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
-    $('courseList').textContent = found.map((entry) => shown(entry.prefix)).join(', ');
-    $('courseDetail').textContent = `${found.reduce((sum, entry) => sum + entry.files, 0)} files would move out of your songs.`;
+// ── Teach the importer: questions about words in the catalog, answers kept as rules ──
+
+const ROLE_LABEL = {
+    band: 'A band, artist or client',
+    series: 'A series of ideas (like Morning 5)',
+    course: 'Course or tutorial material',
+    pack: 'A sample pack',
+    collaborator: "A collaborator's name",
+    word: 'Just part of song titles'
+};
+
+function shown(prefix) {
+    return prefix.replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
 }
 
-function courseSuggestionPrefixes() {
-    return (state.view?.notes.courseSuggestions || []).map((entry) => entry.prefix);
+function renderQuestions(view) {
+    const questions = view.notes.questions || [];
+    $('questionsAlert').hidden = questions.length === 0;
+    if (!questions.length) return;
+    $('questionsCount').textContent = `${questions.length} quick question${questions.length === 1 ? '' : 's'}`;
+    $('questionsDetail').textContent = `What do ${questions.slice(0, 3).map((question) => `“${shown(question.prefix)}”`).join(', ')}${questions.length > 3 ? ' and others' : ''} mean in your catalog? Your answers apply from the next scan.`;
 }
 
-// ── "Check 30 songs": a random sample, one song at a time, answered with one click ──
+function openQuestions() {
+    const questions = state.view?.notes.questions || [];
+    if (!questions.length) return window.showToast?.('No open questions. Answers can be changed under Lab → Rules.', 'success');
+    const body = document.createElement('div');
+    body.className = 'lab-picker';
+    body.innerHTML = questions
+        .map(
+            (question, index) => `<div class="std-form-row">
+                <span class="std-form-label">What is “${escapeHtml(shown(question.prefix))}”? <span class="lab-muted">${question.files} files · e.g. ${escapeHtml(question.examples.join(' · '))}</span></span>
+                <select class="std-form-input" data-question="${index}">
+                    ${Object.entries(ROLE_LABEL).map(([role, label]) => `<option value="${role}"${role === question.guess ? ' selected' : ''}>${escapeHtml(label)}${role === question.guess ? ' (our guess)' : ''}</option>`).join('')}
+                    <option value="">Not sure (skip)</option>
+                </select>
+            </div>`
+        )
+        .join('');
+    const modal = window.createStandardModal({
+        archetype: 'standard',
+        title: 'Teach the importer',
+        subtitle: 'Each answer is kept as a rule and applied first on the next scan. You can change them under Lab → Rules.',
+        body,
+        primaryAction: {
+            label: 'Save and scan again',
+            onClick: async () => {
+                const answers = {};
+                for (const select of body.querySelectorAll('[data-question]')) if (select.value) answers[questions[Number(select.dataset.question)].prefix] = select.value;
+                await api.answerPrefixes(answers);
+                modal.close();
+                startScan();
+            }
+        }
+    });
+}
+
+async function renderRules() {
+    const rules = await api.getRules();
+    const entries = Object.entries(rules.prefixes);
+    $('rulesPrefixes').innerHTML = entries.length
+        ? entries
+              .sort((a, b) => a[0].localeCompare(b[0]))
+              .map(([prefix, role]) => `<div class="std-list-row"><span class="std-list-label">${escapeHtml(shown(prefix))}<br /><span class="std-list-meta">${escapeHtml(ROLE_LABEL[role] || role)}</span></span><button class="std-inline-btn" type="button" data-forget-prefix="${escapeHtml(prefix)}">Forget</button></div>`)
+              .join('')
+        : '<div class="lab-muted">No answers yet.</div>';
+    const counts = rules.fromMarks;
+    $('rulesFromMarks').textContent = `${counts.together} keep-together, ${counts.apart} keep-apart, ${counts.remove} file-out and ${counts.names} rename rules from your marks.`;
+    $('rulesUseMarks').checked = rules.useMarks;
+}
+
+// ── "Check 50 songs": a random sample, one song at a time, answered with one click ──
 
 // The sample comes from the main process: weighted toward songs to check, unclear songs and songs
 // with several files, leaving out songs already checked (apps/lab/src/check.js).
@@ -704,6 +803,25 @@ function renderClosest(song) {
         : '<div class="lab-muted">No other entry has a similar name.</div>';
 }
 
+// How today's importer did on the songs checked in this scan: a song marked right counts for today
+// when one of today's songs holds exactly its files; a merge mark when both songs' files are in one.
+function todayOnChecked(view) {
+    const marks = state.marks.filter((mark) => mark.check && mark.scanId === view.scanId);
+    if (!marks.length) return 'No songs checked in this scan yet.';
+    const todayOf = new Map();
+    for (const group of view.baselines.preserve.groups) for (const id of group.fileIds) todayOf.set(id, group);
+    const idsOf = (name) => view.songs.find((song) => song.name === name)?.fileIds || [];
+    let right = 0;
+    for (const mark of marks) {
+        const ids = idsOf(mark.songName);
+        const groups = new Set(ids.map((id) => todayOf.get(id)));
+        if (mark.kind === 'right') right += Number(groups.size === 1 && [...groups][0] && [...groups][0].fileIds.length === ids.length);
+        else if (mark.kind === 'merge') right += Number(new Set([...ids, ...idsOf(mark.mergeWithSongName)].map((id) => todayOf.get(id))).size === 1);
+        else if (mark.kind === 'split') right += Number(groups.size > 1);
+    }
+    return `${right} of ${marks.length} as you marked them (the new engine: ${marks.filter((mark) => mark.kind === 'right').length})`;
+}
+
 // "27 of 27 right: at least 89% right (95% confidence)". The bound is exact (one-sided).
 function confidenceText(summary) {
     if (!summary.answered) return `No songs checked yet. Aim: ${summary.target}.`;
@@ -762,13 +880,25 @@ $('seeCatalog').addEventListener('click', () => navigate('catalog'));
 $('rescan').addEventListener('click', newScan);
 $('checkStart').addEventListener('click', startCheck);
 $('scanFromScratch').addEventListener('click', () => startScan({ fromScratch: true }));
+$('questionsOpen').addEventListener('click', openQuestions);
+$('rulesAsk').addEventListener('click', openQuestions);
+$('rulesPrefixes').addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-forget-prefix]');
+    if (!button) return;
+    await api.answerPrefixes({ [button.dataset.forgetPrefix]: null });
+    renderRules();
+});
+$('rulesUseMarks').addEventListener('change', async (event) => {
+    await api.setUseMarks(event.target.checked);
+    renderRules();
+});
 $('checkBar').addEventListener('click', async (event) => {
     const same = event.target.closest('[data-same-song]');
     if (same && state.check) {
         const song = state.song;
         const pick = state.check.picks.get(song.key) || {};
         const mark = await saveMark({ kind: 'merge', target: 'song', songName: song.name, check: true, songBand: song.band, songKind: song.kind, stratum: pick.stratum, sampleWeight: pick.weight });
-        const updated = await api.updateMark(mark.id, { mergeWithSongName: same.dataset.sameSong });
+        const updated = await api.updateMark(mark.id, { mergeWithSongName: same.dataset.sameSong, mergeWithFileNames: fileNamesOf(same.dataset.sameSong) });
         Object.assign(state.marks.find((candidate) => candidate.id === mark.id), updated);
         state.check.answers[song.key] = 'merge';
         return nextCheckSong();
@@ -788,17 +918,6 @@ $('toggleOtherKinds').addEventListener('click', () => {
     renderCatalog();
 });
 $('groupEdits').addEventListener('change', async (event) => applySettings(await api.setSetting('groupEdits', event.target.checked)));
-$('courseConfirm').addEventListener('click', async () => {
-    const merged = [...new Set([...(state.settings.scanOptions.courseNamespaces || []), ...courseSuggestionPrefixes()])];
-    applySettings(await api.setSetting('courseNamespaces', merged.join(', ')));
-    $('courseAlert').hidden = true;
-    startScan();
-});
-$('courseDecline').addEventListener('click', async () => {
-    const declined = [...new Set([...(state.settings.scanOptions.declinedCoursePrefixes || []), ...courseSuggestionPrefixes()])];
-    applySettings(await api.setSetting('declinedCoursePrefixes', declined));
-    $('courseAlert').hidden = true;
-});
 $('courseNamespaces').addEventListener('change', async (event) => applySettings(await api.setSetting('courseNamespaces', event.target.value)));
 $('loadExistingSongs').addEventListener('click', async () => {
     $('existingSongsError').hidden = true;

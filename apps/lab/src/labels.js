@@ -8,7 +8,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 
 // 'right' is the answer "Right" in the 30-song check: the song is correct as shown.
-const KINDS = new Set(['wrong-song', 'split', 'merge', 'right']);
+const KINDS = new Set(['wrong-song', 'split', 'merge', 'right', 'rename']);
 
 function catalogId(rootPaths) {
     return crypto.createHash('sha256').update([...rootPaths].sort().join('\u0000')).digest('hex').slice(0, 12);
@@ -45,6 +45,9 @@ function cleanMark(input, context) {
         fileName: input.target === 'file' ? text(input.fileName) : null,
         fileType: input.target === 'file' ? text(input.fileType) : null,
         mergeWithSongName: input.kind === 'merge' ? text(input.mergeWithSongName) : null,
+        // File names (names only) so the mark can become a rule that survives renamed songs.
+        fileNames: Array.isArray(input.fileNames) ? input.fileNames.slice(0, 2000).map((name) => String(name).slice(0, 500)) : null,
+        newName: input.kind === 'rename' ? text(input.newName) : null,
         // Answers from "Check 30 songs" (a random sample) are flagged, with the song's band and kind.
         check: input.check === true,
         songBand: input.check === true ? text(input.songBand) : null,
@@ -69,6 +72,7 @@ function updateMark(dataDir, id, markId, changes) {
     const mark = labels.marks.find((candidate) => candidate.id === markId);
     if (!mark) throw new Error('Mark not found');
     if (changes.mergeWithSongName !== undefined && mark.kind === 'merge') mark.mergeWithSongName = String(changes.mergeWithSongName).slice(0, 500);
+    if (Array.isArray(changes.mergeWithFileNames) && mark.kind === 'merge') mark.mergeWithFileNames = changes.mergeWithFileNames.slice(0, 2000).map((name) => String(name).slice(0, 500));
     saveLabels(dataDir, labels);
     return mark;
 }

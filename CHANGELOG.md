@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.3.0 — 2026-11-08 (M3: rules, marking, metrics, adversarial tests)
+
+Measured by replaying the producer's two results files (2024 and 2025 catalogs) with folders, dates and
+sizes, dev.7 engine → this build. Group-by-group lists with real names are in the git-ignored `private/`
+folder.
+
+| | 2025 catalog (1,291 files) | 2024 catalog (1,803 files) |
+| --- | --- | --- |
+| Today's importer | 592 songs | 1,068 songs |
+| Engine dev.7 → 0.3.0 | 662 → 553 songs | 856 → 845 songs |
+| Songs the producer marked right | 37; 33 unchanged, 4 gained files (nothing removed) | 27; 25 unchanged, 2 gained version files |
+| The producer's answer key | 9 of 10 (the tenth passes once the producer's merge mark is a rule) | 3 of 3 |
+| Stress set (1,000 songs) | 997, no automatic merge of different songs | |
+
+Fixes from the producer's 46 checked songs (2025 catalog):
+- A long shared prefix with "Stems" or a version number ("Kelp Banger 3.4.1 Shorter Stems -") is a stem
+  export, not a client: 60 stems that were each a "song" are one song's stems again. A leading "STEM -"
+  marks a stem. Stems of an export are never pack one-shots.
+- A name after a date wins over the date (the producer's decision): the same name worked on over several
+  days is one song; a date alone ("Friday April 21"), a session word ("- Live") or a note after the date
+  still keeps songs apart. A date typo ("January 123") is still a date. A dated session joins a band's
+  or client's song of the same name only as a suggestion.
+- Version tails: "… 1 Reversed Riff Enhanced" after "…", "… SAMPLE 1" after "…" join as versions
+  ("check", never "sure"); a tail that names another day does not.
+- "<name> mix" teaches a collaborator ("(Theo Mix V4)").
+- Numbered samples ("… - 1", "… - 4") in a folder of samples join its pack; prefixes in one folder that
+  start with the same word are one pack.
+
+M3:
+- **Teach the importer**: up to 8 questions after a scan ("What is Quill? A band · A series · Course ·
+  Sample pack · A collaborator · Just a word"), with the engine's guess preselected. Answers are rules
+  applied first on the next scan; they replace the course-prefix prompt. Lab → Rules lists and forgets
+  them.
+- **Marks become rules** (on by default): Right and merge keep files together, split falls back to the
+  app's exact names, "in the wrong song" takes the file out, the new Rename mark renames. Marks now carry
+  file names; older marks are resolved from the scan they were made on.
+- **Compare** labels "Moved files" next to Merged, Split from and Renamed. **Metrics** adds the check
+  results per engine version and how today's importer did on the songs checked.
+- **The main app's six import test files** run unchanged from the pinned submodule in `npm test` (36
+  tests), plus the AMG-FN-001 negatives as engine tests (`npm run test:adversarial`).
+- **Reading time**: per-reader timings (Ableton, Logic, project folders, audio headers) in Metrics and
+  the results file. The 46 s first scan was reading 314 Ableton sets (about 0.15 s each: unzip,
+  decode, search); hashing took 0.6 s. Reading four sets at once was slower, so reading stays
+  one at a time; stored results make repeat scans fast.
+
+Contract 1.3.0 (optional `userRules`), engine 0.3.0-m3, name policy `lab-names-4`.
+
 ## 0.2.0-dev.7 — 2026-11-08 (stems, packs and the weighted check)
 
 Measured on the dev.6 results from a real catalog (replay with folders, dates and sizes; course

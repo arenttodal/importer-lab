@@ -77,7 +77,15 @@ async function main() {
     await snap('song-marked');
     await page.click('#navBack');
     await settle(page);
-    if (await page.isVisible('#courseAlert')) await snap('course-suggestion');
+    if (await page.isVisible('#questionsAlert')) {
+        await snap('teach-the-importer');
+        await page.click('#questionsOpen');
+        await page.waitForSelector('.std-modal');
+        await settle(page);
+        await snap('teach-the-importer-questions');
+        await page.keyboard.press('Escape');
+        await settle(page);
+    }
     const loose = page.locator('tr[data-song="loose-stems"] .song-name-line p');
     if (await loose.count()) {
         await loose.first().click();
@@ -107,7 +115,7 @@ async function main() {
     await page.click('#openLab');
     await settle(page);
     await snap('lab-compare');
-    for (const section of ['options', 'metrics', 'logs']) {
+    for (const section of ['options', 'rules', 'metrics', 'logs']) {
         await page.click(`[data-lab="${section}"]`);
         await settle(page);
         await snap(`lab-${section}`);

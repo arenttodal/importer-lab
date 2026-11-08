@@ -107,7 +107,15 @@ function summarize(marks) {
         target: TARGET_MARKS,
         lowerBound95: bound === null ? null : Math.floor(bound * 1000) / 1000,
         weightedRightShare: weightSum ? Math.round((weightedRight / weightSum) * 1000) / 1000 : null,
-        byStratum: Object.fromEntries(Object.keys(SHARES).map((name) => [name, answers.filter((mark) => mark.stratum === name).length]))
+        byStratum: Object.fromEntries(Object.keys(SHARES).map((name) => [name, answers.filter((mark) => mark.stratum === name).length])),
+        // The same answers per engine version, to compare builds.
+        byEngineVersion: Object.fromEntries(
+            [...new Set(answers.map((mark) => mark.engineVersion || 'unknown'))].map((version) => {
+                const mine = answers.filter((mark) => (mark.engineVersion || 'unknown') === version);
+                const right = mine.filter((mark) => mark.kind === 'right').length;
+                return [version, { answered: mine.length, right, lowerBound95: Math.floor((lowerBound(right, mine.length) || 0) * 1000) / 1000 }];
+            })
+        )
     };
 }
 

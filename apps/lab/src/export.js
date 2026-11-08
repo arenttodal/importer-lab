@@ -57,6 +57,7 @@ function buildResults({ view, labels, app }) {
             timings: view.notes.timings || {},
             fromScratch: Boolean(view.notes.fromScratch),
             clueCounts: view.notes.clueCounts || {},
+            readers: view.notes.readers || {},
             engineVersion: view.engineVersion,
             policyVersion: view.policyVersion
         },

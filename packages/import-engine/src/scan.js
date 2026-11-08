@@ -16,7 +16,7 @@ const { readClues } = require('./read-clues');
 const { POLICY_VERSION: NAME_POLICY_VERSION } = require('./names');
 const scoring = require('../policy/scoring-v1.json');
 
-const ENGINE_VERSION = '0.2.1-m2';
+const ENGINE_VERSION = '0.3.0-m3';
 const POLICY_VERSION = `${NAME_POLICY_VERSION}+${scoring.version}`;
 const PROGRESS_EVERY = 250;
 // While crawling, the engine groups the files found so far, so songs appear as they are found.
@@ -81,6 +81,7 @@ function groupingOptions(request, links = []) {
         groupEdits: options.groupEdits !== false,
         courseNamespaces: options.catalogRules?.courseNamespaces || [],
         declinedCoursePrefixes: options.catalogRules?.declinedCoursePrefixes || [],
+        userRules: options.userRules || null,
         links
     };
 }
@@ -227,8 +228,10 @@ async function scanCatalog(request, hooks = {}) {
             links: clues.links.length,
             timings,
             clueCounts: clues.counts,
+            readers: clues.readers,
             learned: engine.context,
             courseSuggestions: engine.context.courseSuggestions || [],
+            questions: engine.context.questions || [],
             baselineLog: baseline.log
         },
         records: kept.map(({ item, derived }) => ({ item, derived }))

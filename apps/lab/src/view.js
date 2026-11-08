@@ -112,7 +112,9 @@ function toRendererView(result, roots) {
             timings: result.notes.timings || {},
             fromScratch: Boolean(result.notes.fromScratch),
             courseSuggestions: (result.notes.courseSuggestions || []).map((entry) => ({ prefix: entry.prefix, files: entry.files, signal: entry.signal })),
+            questions: (result.notes.questions || []).map((question) => ({ prefix: question.prefix, files: question.files, guess: question.guess, examples: question.examples })),
             clueCounts: result.notes.clueCounts || {},
+            readers: result.notes.readers || {},
             links: result.notes.links || 0,
             contributors: result.notes.learned?.contributors || [],
             baselineLog: result.notes.baselineLog

@@ -1,6 +1,6 @@
 {
   "name": "importer-lab",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Read-only lab that runs the next-generation import engine on real drives.",
   "license": "SEE LICENSE IN LICENSE",
@@ -14,7 +14,7 @@
   },
   "scripts": {
     "lab": "NODE_OPTIONS= electron apps/lab",
-    "test": "NODE_OPTIONS= ELECTRON_RUN_AS_NODE=1 electron --test --test-reporter=spec \"packages/*/test/*.test.js\" \"apps/lab/test/*.test.js\"",
+    "test": "NODE_OPTIONS= ELECTRON_RUN_AS_NODE=1 electron --test --test-reporter=spec \"packages/*/test/*.test.js\" \"apps/lab/test/*.test.js\" vendor/the-library/tests/unit/import-canonical-identity.test.js vendor/the-library/tests/unit/import-assignment-gate-contract.test.js vendor/the-library/tests/unit/hybrid-grouper.test.js vendor/the-library/tests/unit/track-name-identity-parity.test.js vendor/the-library/tests/unit/external-folder-import.test.js vendor/the-library/tests/unit/ai-grouping-authoritative-scope.test.js",
     "typecheck": "tsc --noEmit --strict packages/contract/index.d.ts",
     "fixtures": "NODE_OPTIONS= ELECTRON_RUN_AS_NODE=1 electron fixtures/synthetic/generate.js fixtures/synthetic/out",
     "scan": "NODE_OPTIONS= ELECTRON_RUN_AS_NODE=1 electron scripts/scan-cli.js",
@@ -23,7 +23,8 @@
     "dist:mac": "electron-builder --mac --publish never",
     "dist:dir": "electron-builder --dir --publish never",
     "vendor:fonts": "node scripts/vendor-fonts.js",
-    "replay": "NODE_OPTIONS= ELECTRON_RUN_AS_NODE=1 electron scripts/replay-results.js"
+    "replay": "NODE_OPTIONS= ELECTRON_RUN_AS_NODE=1 electron scripts/replay-results.js",
+    "test:adversarial": "NODE_OPTIONS= ELECTRON_RUN_AS_NODE=1 electron --test --test-reporter=spec packages/import-engine/test/adversarial.test.js vendor/the-library/tests/unit/import-canonical-identity.test.js vendor/the-library/tests/unit/import-assignment-gate-contract.test.js vendor/the-library/tests/unit/hybrid-grouper.test.js vendor/the-library/tests/unit/track-name-identity-parity.test.js vendor/the-library/tests/unit/external-folder-import.test.js vendor/the-library/tests/unit/ai-grouping-authoritative-scope.test.js"
   },
   "devDependencies": {
     "@fontsource/inter": "5.2.8",

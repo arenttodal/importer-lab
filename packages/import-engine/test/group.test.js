@@ -453,3 +453,59 @@ test('takes join across folders; tempos do not; "Ideas" counts as "Idea", other 
     assert.ok(sameSong(result, 'MARLOW - Coraline Piano Ideas.wav', 'MARLOW - Coraline Piano Idea 1.4 W Image.wav'));
     assert.ok(!sameSong(result, 'MARLOW - Pinwheel.wav', 'MARLOW - Pinwheels.wav'), 'row 18: other plurals are only suggested');
 });
+
+test('version tails join as versions (checked); a tail that names a day does not', () => {
+    const result = groupCatalog([
+        file('June 2 - Jam Fjord 12 String Post Haze 1.1.mp3', 'bounces', { folder: 'A' }),
+        file('June 2 - Jam Fjord 12 String Post Haze 1 Reversed Riff Enhanced 1.mp3', 'bounces', { folder: 'A' }),
+        file('Quill Banks - Pay The Toll Brass Files v2 Master 138 .wav', 'stems', { folder: 'B' }),
+        file('Quill Banks - Pay The Toll Brass Files SAMPLE 1.wav', 'stems', { folder: 'B' }),
+        file('Morning 5 - Thursday October.wav', 'bounces', { folder: 'C' }),
+        file('Morning 5 - Thursday October 12.wav', 'bounces', { folder: 'C' })
+    ]);
+    assert.ok(sameSong(result, 'June 2 - Jam Fjord 12 String Post Haze 1.1.mp3', 'June 2 - Jam Fjord 12 String Post Haze 1 Reversed Riff Enhanced 1.mp3'));
+    assert.equal(songOf(result, 'June 2 - Jam Fjord 12 String Post Haze 1.1.mp3').band, 'unsure');
+    assert.ok(sameSong(result, 'Quill Banks - Pay The Toll Brass Files v2 Master 138 .wav', 'Quill Banks - Pay The Toll Brass Files SAMPLE 1.wav'));
+    assert.ok(!sameSong(result, 'Morning 5 - Thursday October.wav', 'Morning 5 - Thursday October 12.wav'));
+});
+
+test('a name after a date wins over the date; a date alone, a session word or a note after it does not', () => {
+    const result = groupCatalog([
+        file('Morning 5 - August 5 - The Lighthousekeeper 1.1 Idea.wav', 'bounces', { folder: 'A' }),
+        file('Morning 5 - August 6 - The Lighthousekeeper 1.3 Full.wav', 'bounces', { folder: 'A' }),
+        file('August 24 - The Lighthousekeeper 1.6.wav', 'bounces', { folder: 'A' }),
+        file('January 123 - Kelp Project', 'projects', { folder: 'P' }),
+        file('Morning 5 - January 23 - Kelp.wav', 'bounces', { folder: 'A' }),
+        file('Morning 5 - March 26 - Live.wav', 'bounces', { folder: 'A' }),
+        file('Morning 5 - March 27 - Live.wav', 'bounces', { folder: 'A' }),
+        file('Morning 5 - Friday April 21.wav'),
+        file('Morning 5 - Friday April 28.wav')
+    ]);
+    assert.ok(sameSong(result, 'Morning 5 - August 5 - The Lighthousekeeper 1.1 Idea.wav', 'Morning 5 - August 6 - The Lighthousekeeper 1.3 Full.wav', 'August 24 - The Lighthousekeeper 1.6.wav'));
+    assert.ok(sameSong(result, 'January 123 - Kelp Project', 'Morning 5 - January 23 - Kelp.wav'), 'a date with a typo still gives way to the name');
+    assert.ok(!sameSong(result, 'Morning 5 - March 26 - Live.wav', 'Morning 5 - March 27 - Live.wav'), 'a session word is not a name');
+    assert.ok(!sameSong(result, 'Morning 5 - Friday April 21.wav', 'Morning 5 - Friday April 28.wav'), 'row 26 holds');
+});
+
+test('sample packs: numbered samples in a sample folder join its pack; stems of an export never do', () => {
+    const lib = { folder: 'LIB' };
+    const stems = { folder: 'STEMS' };
+    const result = groupCatalog([
+        file('Lx - Drum Epic - Shroud - 1.wav', 'stems', lib),
+        file('Lx - Hit - Heartbeat.wav', 'bounces', lib),
+        file('Lx - Signature - Broken Cello - 1.wav', 'bounces', lib),
+        file('Lx - Signature - Broken Cello - 4.wav', 'bounces', lib),
+        file('LX DEEP WHOOSH - 1.wav', 'bounces', lib),
+        file('LX PERC ROLLS - 12.wav', 'stems', lib),
+        file('KELP BANGER 3.4.1 shorter Stems -  NEW KICK.wav', 'stems', stems),
+        file('KELP BANGER 3.4.1 shorter Stems -  59-Reel Snare.wav', 'stems', stems),
+        file('KELP BANGER 3.4.1 shorter Stems -  BASS DIVA.wav', 'stems', stems),
+        file('KELP BANGER 3.4.1 shorter Stems -  72-OE_Perc_29.wav', 'stems', stems),
+        file('KELP BANGER 3.4.1 shorter Stems -  ac guitar.wav', 'stems', stems),
+        file('KELP BANGER 3.4.1 shorter Stems -  12-high harm a.wav', 'stems', stems)
+    ]);
+    assert.ok(sameSong(result, 'Lx - Signature - Broken Cello - 1.wav', 'Lx - Hit - Heartbeat.wav', 'LX DEEP WHOOSH - 1.wav', 'LX PERC ROLLS - 12.wav'));
+    assert.equal(songOf(result, 'Lx - Signature - Broken Cello - 1.wav').kind, 'sample-pack');
+    assert.ok(sameSong(result, 'KELP BANGER 3.4.1 shorter Stems -  NEW KICK.wav', 'KELP BANGER 3.4.1 shorter Stems -  ac guitar.wav', 'KELP BANGER 3.4.1 shorter Stems -  12-high harm a.wav'), 'all the stems of one idea');
+    assert.notEqual(songOf(result, 'KELP BANGER 3.4.1 shorter Stems -  NEW KICK.wav').kind, 'sample-pack');
+});

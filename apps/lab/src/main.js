@@ -20,6 +20,7 @@ const { loadSettings, saveSettings } = require('./settings');
 const { listFolders, publicFolders } = require('./folders');
 const labels = require('./labels');
 const check = require('./check');
+const rulesStore = require('./rules');
 const history = require('./history');
 const { buildResults, writeResults } = require('./export');
 const { loadExistingSongs } = require('./existing-songs');
@@ -118,6 +119,35 @@ function existingSongsForScan() {
 }
 
 // A new scan replaces one still running: the old one is cancelled and finishes first.
+// The producer's rules: prefix answers, plus every mark (from every catalog's labels) as a rule.
+function userRulesForScan() {
+    const marks = [];
+    try {
+        for (const name of fs.readdirSync(path.join(DATA_DIR, 'labels'))) {
+            if (name.endsWith('.json')) marks.push(...labels.loadLabels(DATA_DIR, name.replace(/\.json$/, '')).marks);
+        }
+    } catch {
+        /* no labels yet */
+    }
+    const views = new Map();
+    const filesOf = (scanId, songName) => {
+        if (!scanId) return null;
+        if (!views.has(scanId)) {
+            try {
+                views.set(scanId, history.openScan(DATA_DIR, scanId).view);
+            } catch {
+                views.set(scanId, null);
+            }
+        }
+        const view = views.get(scanId);
+        const song = view && view.songs.find((candidate) => candidate.name === songName);
+        if (!song) return null;
+        const byId = new Map(view.files.map((file) => [file.fileId, file.name]));
+        return song.fileIds.map((id) => byId.get(id)).filter(Boolean);
+    };
+    return rulesStore.buildUserRules(DATA_DIR, marks, filesOf);
+}
+
 async function startScanning({ fromScratch = false } = {}) {
     if (currentScan) {
         currentScan.cancel();
@@ -138,6 +168,7 @@ async function startScanning({ fromScratch = false } = {}) {
         },
         existingSongs: existingSongsForScan()
     };
+    request.options.userRules = userRulesForScan();
     const catalogId = labels.catalogId(request.roots);
     const scan = startScan({
         request,
@@ -263,6 +294,15 @@ function registerIpc() {
         return check.drawSample(last.view.songs, { exclude });
     });
     ipcMain.handle('lab:check-summary', () => (last ? check.summarize(labels.loadLabels(DATA_DIR, last.catalogId).marks) : check.summarize([])));
+
+    // Teach the importer: prefix answers and the rules from marks.
+    ipcMain.handle('lab:get-rules', () => {
+        const saved = rulesStore.loadRules(DATA_DIR);
+        const fromMarks = userRulesForScan();
+        return { prefixes: saved.prefixes, useMarks: saved.useMarks, fromMarks: { together: fromMarks.together.length, apart: fromMarks.apart.length, remove: fromMarks.remove.length, names: fromMarks.names.length } };
+    });
+    ipcMain.handle('lab:answer-prefixes', (_event, answers) => rulesStore.answerPrefixes(DATA_DIR, answers).prefixes);
+    ipcMain.handle('lab:set-use-marks', (_event, useMarks) => rulesStore.setUseMarks(DATA_DIR, useMarks).useMarks);
 
     ipcMain.handle('lab:export-results', () => {
         if (!last) throw new Error('Scan first');

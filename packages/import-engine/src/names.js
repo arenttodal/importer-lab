@@ -101,6 +101,17 @@ function phraseAt(tokens, index) {
     return PHRASES.find((phrase) => startsWith(tokens.slice(index), phrase.words)) || null;
 }
 
+function isDateSegment(tokens) {
+    const words = tokens.filter((token) => !WEEKDAYS.has(token));
+    return words.length === 2 && ((MONTHS.has(words[0]) && /^\d{1,3}(st|nd|rd|th)?$/.test(words[1])) || (MONTHS.has(words[1]) && /^\d{1,2}(st|nd|rd|th)?$/.test(words[0])));
+}
+
+const SESSION_WORDS = set(policy.sessionWords);
+
+function hasDistinctiveName(tokens) {
+    return tokens.some((token) => token.length >= 3 && !isNumber(token) && !SESSION_WORDS.has(token) && !STEM_WORDS.has(token) && !wordRule(token, {}) && !MONTHS.has(token) && !WEEKDAYS.has(token) && !VERSION_WORDS.has(token) && !STEM_MARKERS.has(token));
+}
+
 function isStemSegment(tokens) {
     const words = tokens.filter((token) => !isNumber(token) && !STEM_MARKERS.has(token));
     return words.length > 0 && words.every((token) => STEM_WORDS.has(token)) && words.some((token) => !STEM_SECONDARY.has(token));
@@ -151,11 +162,15 @@ function trailingDateLength(tokens) {
 
 // ── Analysis ──
 
-function createNameContext({ namespaces = [], contributors = [], courseNamespaces = [] } = {}) {
+// seriesPrefixes: the producer's own series ("Morning 5" style), from user rules; they work like
+// the policy's category prefixes.
+function createNameContext({ namespaces = [], contributors = [], courseNamespaces = [], seriesPrefixes = [] } = {}) {
+    const series = seriesPrefixes.map((prefix) => prefix.toLowerCase().split(' ').filter(Boolean));
     return {
         namespaces: new Set(namespaces.map((namespace) => namespace.toLowerCase())),
         contributors: new Set(contributors.map((name) => name.toLowerCase())),
-        courseNamespaces: new Set(courseNamespaces.map((namespace) => namespace.toLowerCase()))
+        courseNamespaces: new Set(courseNamespaces.map((namespace) => namespace.toLowerCase())),
+        categories: [...CATEGORIES, ...series].sort((a, b) => b.length - a.length)
     };
 }
 
@@ -182,10 +197,19 @@ function analyseName(file, ctx, options = {}) {
         })
         .filter((tokens) => tokens.length);
 
+    // A leading "STEM -" or "STEMS -" says the file is a stem; the last segment names the part.
+    let leadingStem = false;
+    if (segments.length > 1 && STEM_MARKERS.has(segments[0][0])) {
+        leadingStem = true;
+        setAside('stem', [segments[0][0]]);
+        segments[0] = segments[0].slice(1);
+        if (!segments[0].length) segments.shift();
+    }
+
     // 1. Category prefix ("Beat Idea -", "Morning 5 -"), as a segment or at the start of one.
     let category = null;
     if (segments.length) {
-        const prefix = CATEGORIES.find((words) => startsWith(segments[0], words) && (segments[0].length > words.length || segments.length > 1));
+        const prefix = (ctx.categories || CATEGORIES).find((words) => startsWith(segments[0], words) && (segments[0].length > words.length || segments.length > 1));
         if (prefix) {
             category = prefix.join(' ');
             setAside('category', prefix);
@@ -204,6 +228,24 @@ function analyseName(file, ctx, options = {}) {
             return kept;
         })
         .filter((tokens) => tokens.length);
+
+    let dateSession = false;
+    // A segment that is only a date ("August 5", "Monday Nov 27", even "January 123") is a session
+    // when a distinctive name follows ("- The Lighthousekeeper"): the name is the song, worked on over days.
+    // A date alone ("Morning 5 - Friday April 21") stays the title, and so does a date followed only
+    // by session words ("- Live", "- Piano Jam").
+    for (let index = 0; index < segments.length - 1; index += 1) {
+        if (!isDateSegment(segments[index])) continue;
+        // A name is short ("The Lighthousekeeper", "A Quiet Tide"); a sentence after the date is a note.
+        const next = segments[index + 1];
+        const cut = next.findIndex((token) => isNumber(token) || matchesAny(VERSION_PATTERNS, token));
+        const name = cut > 0 ? next.slice(0, cut) : next;
+        if (name.length > 4 || !hasDistinctiveName(name)) continue;
+        setAside('date', segments[index]);
+        segments.splice(index, 1);
+        dateSession = true;
+        break;
+    }
 
     // 2. Namespace (client, collaborator, series): learned from the catalog, or an "A X B" collaboration
 //    prefix (the app's own convention, e.g. "ARN X JOSH -"). Only when a title remains after it.
@@ -230,7 +272,9 @@ function analyseName(file, ctx, options = {}) {
     function takeStemPart(list) {
         let stemPart = null;
         const out = list.map((tokens) => [...tokens]);
-        if (out.length > 1 && isStemSegment(out[out.length - 1])) {
+        if (leadingStem && out.length > 1) {
+            stemPart = out.pop().filter((token) => !isNumber(token)).join(' ') || 'stems';
+        } else if (out.length > 1 && isStemSegment(out[out.length - 1])) {
             stemPart = out.pop().filter((token) => !STEM_MARKERS.has(token) && !isNumber(token)).join(' ');
             // "… Arn Stems - Hits": the marker before the part is not title.
             const last = out[out.length - 1];
@@ -309,6 +353,7 @@ function analyseName(file, ctx, options = {}) {
         generic,
         dateKeyed,
         weak: isWeakTitle(title),
+        dateSession,
         // Bare numbers set aside (take or tempo): they only join a song whose plain title also exists.
         bareNumber: removed.filter((step) => step.rule === 'version' && step.words.split(' ').every(isNumber)).map((step) => step.words).reverse().join(' '),
         removed

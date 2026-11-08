@@ -24,6 +24,24 @@ function readAbleton(filePath) {
     } catch {
         return null;
     }
+    return parseAbleton(xml);
+}
+
+// The same reader, unzipping on a background thread so several projects can be read at once.
+async function readAbletonAsync(filePath) {
+    let xml;
+    try {
+        const stat = await fs.promises.stat(filePath);
+        if (stat.size > MAX_COMPRESSED_BYTES) return null;
+        const zipped = await fs.promises.readFile(filePath);
+        xml = (await new Promise((resolve, reject) => zlib.gunzip(zipped, (error, data) => (error ? reject(error) : resolve(data))))).toString('utf8');
+    } catch {
+        return null;
+    }
+    return parseAbleton(xml);
+}
+
+function parseAbleton(xml) {
     if (!/<Ableton\b/.test(xml)) return null;
 
     const tempo = Number(xml.match(/<Tempo>[\s\S]*?<Manual Value="([\d.]+)"/)?.[1]) || null;
@@ -51,4 +69,4 @@ function readAbleton(filePath) {
     };
 }
 
-module.exports = { readAbleton };
+module.exports = { readAbleton, readAbletonAsync };

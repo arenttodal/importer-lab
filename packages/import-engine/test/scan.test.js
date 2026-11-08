@@ -31,10 +31,10 @@ test('every ground-truth file of the synthetic catalog is in the catalog and in 
     }
 });
 
-test('catalog follows contract 1.2.0 and the baseline runs in both modes', async (t) => {
+test('catalog follows contract 1.3.0 and the baseline runs in both modes', async (t) => {
     const { root } = makeCatalog(t);
     const result = await scanCatalog(scanRequest([root]));
-    assert.equal(result.catalog.contractVersion, '1.2.0');
+    assert.equal(result.catalog.contractVersion, '1.3.0');
     assert.equal(result.catalog.stats.files, allFiles(result.catalog).length);
     assert.ok(result.catalog.baselineStripPrefixes.groups.length > 0);
     assert.equal(result.catalog.stats.cappedAt, null);
@@ -73,6 +73,14 @@ test('a scan never opens a cloud placeholder (so nothing downloads); local files
         t.mock.method(fs, 'createReadStream', function (target, ...rest) {
             record(target);
             return spies[2].mock.original.call(this, target, ...rest);
+        }),
+        t.mock.method(fs.promises, 'readFile', function (target, ...rest) {
+            record(target);
+            return spies[3].mock.original.call(this, target, ...rest);
+        }),
+        t.mock.method(fs.promises, 'open', function (target, ...rest) {
+            record(target);
+            return spies[4].mock.original.call(this, target, ...rest);
         })
     ];
     await scanCatalog(scanRequest([root]));

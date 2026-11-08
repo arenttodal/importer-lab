@@ -40,7 +40,10 @@ bands arrive in M2.
    similar entries with a **Same song** button. The answers go in the results file, and Metrics shows
    the confidence they give. If the catalog looks like it holds course material, the app names the
    prefixes and asks once; **Yes** scans again with them set aside. Entries beside a sample pack that
-   may or may not belong to it are marked **Review**.
+   may or may not belong to it are marked **Review**. **Teach the importer** asks a few questions
+   after a scan ("What is Quill? A band, a series, a course, a sample pack, a collaborator, or just a
+   word?"); answers and marks (including **Rename**) become rules applied first on the next scan, listed
+   under Lab → **Rules**.
 7. **Send results to the team** saves one file (names, counts, marks and timings — no paths, no audio)
    and shows it in Finder, ready to attach to a message.
 
@@ -53,7 +56,8 @@ Team tools (compare with today's importer, scan options, metrics, logs) are hidd
 merge rule (exact identity only, or multi-clue), cloud placeholders (list or leave out), edits as
 versions, **Course prefixes** (comma-separated words that mark course material in this catalog), and
 **Songs already in your Library** (load a snapshot JSON exported from the app; an empty or malformed
-file is refused). Options apply from the next scan. **Scan from scratch** reads every file again,
+file is refused). Options apply from the next scan. `npm run test:adversarial` runs the main app's six import test files unchanged from the submodule
+plus the engine's adversarial cases. **Scan from scratch** reads every file again,
 ignoring what earlier scans stored, to time a first scan.
 
 How songs are grouped, and every failure of today's importer the lab fixes, is in `docs/FINDINGS.md`.

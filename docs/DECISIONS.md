@@ -3,6 +3,51 @@
 Newest first. Each entry: what was decided, why, and what would change it. Conflicts between the spec
 and the brief are in `docs/CONFLICTS.md`; this log records how the build resolved them.
 
+## 2026-11-08 — 0.3.0: M3 (rules, marking, metrics, adversarial tests)
+
+**D62. Reading time.** Ableton sets are unzipped, decoded and searched in full: about 0.1–0.15 s per
+set (measured: 40 MB of XML = 50 ms unzip, 23 ms decode, 30 ms search). Reading four at once was slower
+(the search runs on one thread), so files are read one at a time. Per-reader time, files, megabytes and
+the slowest file are reported. Stored results make the second scan fast (1.4 s on 1,803 files).
+
+**D63. A name after a date wins** (the producer's decision, 8 Nov). A segment that is only a date
+(weekday optional; a three-digit "day" is taken as a typo) is set aside when the next segment holds a
+distinctive name of four words or fewer (before any version number). Session words ("live", "jam",
+"piano"…), part words and notes do not count as names. Without a name the date stays the title (row 26).
+A dated session joins a band's or client's song of the same name only as a suggestion.
+
+**D64. Export prefixes are not clients.** A learned prefix holding a stem marker or a version number is a
+stem export ("… 3.4.1 Shorter Stems -"). A leading "STEM -" or "STEMS -" marks the file as a stem with
+the last segment as its part. Stems of an export are never pack one-shots.
+
+**D65. Version tails.** A title that is another's plus a tail starting with a number, "v" or "sample"
+joins it as a version when they share a folder and prefix and only one song fits; the join is "check".
+Tails that name another day never join.
+
+**D66. Numbered samples.** "… - N" files make a folder pack-like when one-shots and numbered samples are
+at least half its audio (four or more); a folder of four or more one-shots stays pack-like as before.
+Packs in one folder whose prefixes start with the same word are one pack.
+
+**D67. User rules** (`packages/import-engine/src/user-rules.js`, contract 1.3.0 `userRules`). Prefix
+roles: band (a namespace), series (a category, like Morning 5), course, pack (one sample-pack entry
+per prefix), collaborator (a contributor), word (never a prefix). File rules from marks: together,
+apart (back to the app's exact names), remove, names. Applied first: prefixes before naming, file
+rules right after grouping. A song joined by the producer's rule is "sure".
+
+**D68. Teach the importer** (`questions.js`). Up to 8 prefixes of three or more files, by file count,
+never dates, version numbers, policy categories or answered ones. The guess comes from course signals,
+pack share, date share or a learned namespace. Answers are saved in `rules.json` in the data folder
+(the producer's own vocabulary, across catalogs) and replace the course-prefix prompt; the manual course
+setting stays as an override.
+
+**D69. Marks become rules** by default (Lab → Rules can switch it off). Marks carry the song's file
+names (names only); older marks are resolved from the saved scan they were made on. A mark made by
+mistake must be undone, or it becomes a rule.
+
+**D70. The main app's tests run in place.** The six import test files run from the pinned submodule with
+Electron's Node in `npm test` (36 tests), unchanged: copying them would mean editing their relative
+imports, which the never-copy-and-edit rule forbids. The AMG-FN-001 negatives are engine tests.
+
 ## 2026-11-08 — 0.2.0-dev.7: stems, packs and the weighted check
 
 **D53. Versions inside a title.** A version token after the title has begun ("Glass Track Remake **V2**

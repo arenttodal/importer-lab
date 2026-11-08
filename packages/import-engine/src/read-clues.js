@@ -6,7 +6,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { readAbleton } = require('./clues/ableton');
+const { readAbletonAsync } = require('./clues/ableton');
 const { readLogicPackage } = require('./clues/logic');
 const { readAudioDuration } = require('./clues/audio-header');
 const { findExportBatches } = require('./clues/batches');
@@ -47,42 +47,69 @@ function readable(filePath) {
     return stat && stat.isFile() && !isPlaceholderCandidate(stat) ? stat : null;
 }
 
-// Reads what each file can tell, filling `derived` (cached) and returning project facts.
-function readFileClues(file, item, derived) {
+// Reads what each file can tell, filling `derived` (cached) and returning project facts. Time,
+// files and bytes are counted per reader (`stats`), so a slow first scan shows where the time went.
+async function readFileClues(file, item, derived, stats) {
     if (derived.cloudPlaceholder || derived.cluesRead === CLUES_VERSION) return derived;
     const next = { ...derived, cluesRead: CLUES_VERSION };
+    const started = Date.now();
+    let reader = 'other';
+    let bytes = 0;
     if (file.ext === 'als' && item.type === 'file') {
-        next.project = readAbleton(item.path);
+        reader = 'ableton';
+        bytes = item.size || 0;
+        next.project = await readAbletonAsync(item.path);
         next.project = next.project && { ...next.project, savedAtMs: item.mtimeMs };
     } else if (file.ext === 'logicx' || (item.type === 'folder' && item.extension === '.logicx')) {
+        reader = 'logic';
         next.project = readLogicPackage(item.path);
     } else if (item.type === 'folder') {
+        reader = 'abletonFolder';
         const als = alsInFolder(item);
         const stat = als && readable(als);
         if (stat) {
-            const facts = readAbleton(als);
+            bytes = stat.size;
+            const facts = await readAbletonAsync(als);
             next.project = facts && { ...facts, savedAtMs: stat.mtimeMs };
         }
     } else if (HEADER_FORMATS.has(file.ext) && item.size > 0) {
+        reader = 'audioHeader';
         next.durationMs = readAudioDuration(item.path);
     }
+    if (!stats[reader]) stats[reader] = { files: 0, ms: 0, megabytes: 0, slowestMs: 0 };
+    const took = Date.now() - started;
+    stats[reader].files += 1;
+    stats[reader].ms += took;
+    stats[reader].megabytes = Math.round((stats[reader].megabytes + bytes / 1e6) * 10) / 10;
+    stats[reader].slowestMs = Math.max(stats[reader].slowestMs, took);
     return next;
 }
+
+// Files are read one at a time: reading four Ableton sets at once was slower (the XML search,
+// not the unzipping, is most of the time; docs/DECISIONS.md D62).
+const PARALLEL_READS = 1;
 
 async function readClues(entries, { onProgress = () => {} } = {}) {
     let read = 0;
     let opened = 0;
     let started = Date.now();
     const timings = {};
-    for (const entry of entries) {
-        const before = entry.derived;
-        entry.derived = readFileClues(entry.file, entry.item, entry.derived);
-        if (entry.derived !== before) opened += 1;
-        if (entry.derived.project) entry.file.project = entry.derived.project;
-        if (entry.derived.durationMs) entry.file.durationMs = entry.derived.durationMs;
-        read += 1;
-        if (read % 250 === 0) onProgress(read);
+    const readers = {};
+    let next = 0;
+    async function worker() {
+        while (next < entries.length) {
+            const entry = entries[next];
+            next += 1;
+            const before = entry.derived;
+            entry.derived = await readFileClues(entry.file, entry.item, entry.derived, readers);
+            if (entry.derived !== before) opened += 1;
+            if (entry.derived.project) entry.file.project = entry.derived.project;
+            if (entry.derived.durationMs) entry.file.durationMs = entry.derived.durationMs;
+            read += 1;
+            if (read % 250 === 0) onProgress(read);
+        }
     }
+    await Promise.all(Array.from({ length: PARALLEL_READS }, worker));
 
     timings.readFilesMs = Date.now() - started;
     started = Date.now();
@@ -106,7 +133,7 @@ async function readClues(entries, { onProgress = () => {} } = {}) {
     for (const duplicate of duplicates) {
         for (const copy of duplicate.copies) links.push({ clue: 'duplicate', fileIds: [duplicate.keepFileId, copy], weight: 0.99, text: 'The same audio, byte for byte, under another name or folder.' });
     }
-    return { links, duplicates, projectsRead: projects.length, timings, counts: { filesOpened: opened, filesNotOpened: entries.length - opened, sameSizeFilesChecked: checked, filesHashedInFull: hashed } };
+    return { links, duplicates, projectsRead: projects.length, timings, readers, counts: { filesOpened: opened, filesNotOpened: entries.length - opened, sameSizeFilesChecked: checked, filesHashedInFull: hashed } };
 }
 
 module.exports = { readClues };

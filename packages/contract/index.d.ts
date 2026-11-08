@@ -18,7 +18,17 @@ export interface ScanRequest {
     identityPolicyVersion: string; // ADDED — required to A/B the normalizer reconciliation
     groupEdits?: boolean; // 1.1.0 — short/long/track edits are versions of one song (default true)
     catalogRules?: { courseNamespaces?: string[] }; // 1.1.0 — prefixes that mark course material
+    userRules?: UserRules; // 1.3.0 — the producer's answers and corrections, applied first
   };
+}
+
+// 1.3.0 — the producer's rules: prefix answers and corrections from marks (file names only).
+export interface UserRules {
+  prefixes?: Record<string, "band" | "series" | "course" | "pack" | "collaborator" | "word">;
+  together?: string[][];
+  apart?: string[][];
+  remove?: { file: string; from: string[] }[];
+  names?: { files: string[]; name: string }[];
 }
 
 // CONFIRMED against public/components/header.js:4194 and the track_groups DDL
@@ -35,7 +45,7 @@ export interface ExistingSong {
 }
 
 export interface ProposedCatalog {
-  contractVersion: "1.0.0" | "1.1.0" | "1.2.0";
+  contractVersion: "1.0.0" | "1.1.0" | "1.2.0" | "1.3.0";
   engineVersion: string;
   policyVersion: string;
   songs: ProposedSong[];
