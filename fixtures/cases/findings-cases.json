@@ -235,6 +235,20 @@
                 ["Morning 5 - Friday May 19.wav", "bounces"]
             ],
             "apart": [["SKY.wav", "Red Sky 116bpm.wav", "Ide Kareal Sky.als", "Sky Structure.wav"], ["AURORA LIVE SET - ASCENT 2023.wav", "AURORA LIVE SET - ASCENT 2024.wav"], ["Jam - Friday May 19.wav", "Morning 5 - Friday May 19.wav"]]
+        },
+        {
+            "row": 28,
+            "files": [
+                ["Morning 5 - May 3 - Harbour Lights.wav", "bounces"],
+                ["May 3 - Harbour Lights Project", "projects"],
+                ["May 3 - Harbour Lights - Musicbed Idea 1.1.wav", "bounces"],
+                ["May 3 - Harbour Lights - Musicbed 1.7 w live vln.wav", "bounces"],
+                ["Beat Idea - Revisit May 9 WIP 1.0.wav", "bounces"],
+                ["Beat Idea - Revisit May 9 WIP 2.wav", "bounces"],
+                ["Beat Idea - Revisit May 9 Sample V1.wav", "bounces"]
+            ],
+            "together": [["Morning 5 - May 3 - Harbour Lights.wav", "May 3 - Harbour Lights Project", "May 3 - Harbour Lights - Musicbed Idea 1.1.wav", "May 3 - Harbour Lights - Musicbed 1.7 w live vln.wav"], ["Beat Idea - Revisit May 9 WIP 1.0.wav", "Beat Idea - Revisit May 9 WIP 2.wav"]],
+            "apart": [["Beat Idea - Revisit May 9 WIP 1.0.wav", "Beat Idea - Revisit May 9 Sample V1.wav"]]
         }
     ]
 }

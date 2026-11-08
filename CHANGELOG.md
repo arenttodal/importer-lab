@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.0-dev.10 — 2026-11-08 (two fixes from the 22:44 check)
+
+Replay of the producer's results files, 0.4.0-m4 → 0.4.1-m4 (names policy `lab-names-5`). The list of
+changed groups with real names is in the git-ignored `private/` folder.
+
+| | 2025 catalog | 2024 catalog |
+| --- | --- | --- |
+| Songs | 553 → 549 | 845 → 844 |
+| Groups changed | 7 → 3 | 2 → 1 |
+| Songs the producer marked right | none changed | none marked in this file |
+| Answer key | 11 of 12 (unchanged: the twelfth passes through the producer's merge rule) | 3 of 3 |
+
+- A closing segment that starts with a category phrase of two or more words, spaced or as one word
+  ("- Musicbed Idea 1.1", "- Music Bed 2 Copy", "- Sound Design 2"), describes the file; it is not title.
+  One-word categories at the end ("- Jam", "- Sample") stay title. A song in three entries is one.
+- When cleaning a name would leave nothing ("Beat Idea - Revisit May 9 WIP 2"), the date stays the title,
+  so the takes of one dated revisit are one song; a name beside the date ("… Sample V1") is still another
+  song, and another day another song.
+
 ## 0.4.0 — 2026-11-08 (M4: the AI pass)
 
 - **AI on unclear songs only**, off by default (Lab → Scan options). Sent per song: an opaque id, file

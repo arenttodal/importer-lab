@@ -509,3 +509,22 @@ test('sample packs: numbered samples in a sample folder join its pack; stems of 
     assert.ok(sameSong(result, 'KELP BANGER 3.4.1 shorter Stems -  NEW KICK.wav', 'KELP BANGER 3.4.1 shorter Stems -  ac guitar.wav', 'KELP BANGER 3.4.1 shorter Stems -  12-high harm a.wav'), 'all the stems of one idea');
     assert.notEqual(songOf(result, 'KELP BANGER 3.4.1 shorter Stems -  NEW KICK.wav').kind, 'sample-pack');
 });
+
+test('dev.10: a song described as a music bed is one song with its jam and project; a dated revisit keeps its takes together', () => {
+    const result = groupCatalog([
+        file('Morning 5 - May 3 - Harbour Lights.wav', 'bounces', { folder: 'A' }),
+        file('May 3 - Harbour Lights Project', 'projects', { folder: 'P' }),
+        file('May 3 - Harbour Lights - Musicbed Idea 1.1.wav', 'bounces', { folder: 'A' }),
+        file('May 3 - Harbour Lights - Musicbed Idea 1.2.wav', 'bounces', { folder: 'A' }),
+        file('May 3 - Harbour Lights - Musicbed 1.5.wav', 'bounces', { folder: 'A' }),
+        file('Beat Idea - Revisit May 9 WIP 1.0.wav', 'bounces', { folder: 'A' }),
+        file('Beat Idea - Revisit May 9 WIP 2.wav', 'bounces', { folder: 'A' }),
+        file('Beat Idea - Revisit May 9 Sample V1.wav', 'bounces', { folder: 'A' }),
+        file('Beat Idea - Revisit May 10 WIP 1.0.wav', 'bounces', { folder: 'A' })
+    ]);
+    assert.ok(sameSong(result, 'Morning 5 - May 3 - Harbour Lights.wav', 'May 3 - Harbour Lights Project', 'May 3 - Harbour Lights - Musicbed Idea 1.1.wav', 'May 3 - Harbour Lights - Musicbed Idea 1.2.wav', 'May 3 - Harbour Lights - Musicbed 1.5.wav'));
+    assert.ok(sameSong(result, 'Beat Idea - Revisit May 9 WIP 1.0.wav', 'Beat Idea - Revisit May 9 WIP 2.wav'));
+    assert.match(songOf(result, 'Beat Idea - Revisit May 9 WIP 2.wav').reasons.map((reason) => reason.text).join(' '), /same name in the app's own name cleaning/, 'sure only because the app gives both the same identity');
+    assert.ok(!sameSong(result, 'Beat Idea - Revisit May 9 WIP 1.0.wav', 'Beat Idea - Revisit May 9 Sample V1.wav'), 'a name beside the date is another song');
+    assert.ok(!sameSong(result, 'Beat Idea - Revisit May 9 WIP 1.0.wav', 'Beat Idea - Revisit May 10 WIP 1.0.wav'), 'another day is another song');
+});

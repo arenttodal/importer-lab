@@ -1,6 +1,6 @@
 'use strict';
 
-// Tests first for the name policy (lab-names-4). Names are invented; each case follows a pattern
+// Tests first for the name policy (lab-names-5). Names are invented; each case follows a pattern
 // from docs/FINDINGS.md. `title` is the song identity the policy proposes; `label` collects the
 // words it set aside as a version label; `stemPart` is the part named in a stem file.
 
@@ -150,4 +150,26 @@ test('bare numbers: takes (1–30) and tempos (60–200) are set aside, other nu
     assert.equal(analyse('Silver Lights 122.wav').title, 'silver lights');
     assert.deepEqual([analyse('Silver Lights 537.wav').title, analyse('Silver Lights 537.wav').bareNumber], ['silver lights 537', '']);
     assert.equal(analyse('Silver Lights v2.wav').bareNumber, '', 'a version word is not a bare number');
+});
+
+test('a category phrase at the end of a name describes the file; it is not title ("- Musicbed Idea 1.1")', () => {
+    assert.equal(analyse('May 3 - Harbour Lights - Musicbed Idea 1.1.wav').title, 'harbour lights');
+    assert.equal(analyse('May 3 - Harbour Lights - Musicbed 1.7 w live vln.wav').title, 'harbour lights');
+    assert.equal(analyse('May 3 - Harbour Lights - Music Bed 2 Copy Project', 'projects').title, 'harbour lights');
+    assert.equal(analyse('Morning 5 - May 3 - Harbour Lights.wav').title, 'harbour lights');
+    assert.match(analyse('May 3 - Harbour Lights - Musicbed Idea 1.1.wav').label, /musicbed idea/);
+    // Single-word categories at the end stay title: "Jam", "Sample" can be part of a name.
+    assert.equal(analyse('Glass Tide - Jam.wav').title, 'glass tide jam');
+    assert.equal(analyse('Copper Field - Sample.wav').title, 'copper field sample');
+    // At the start it is still the category prefix.
+    assert.deepEqual([analyse('Music Bed - Calm Water.wav').title, analyse('Music Bed - Calm Water.wav').category], ['calm water', 'music bed']);
+});
+
+test('when cleaning would leave nothing, the date stays the title ("Revisit May 3 WIP 2")', () => {
+    const first = analyse('Beat Idea - Revisit May 3 WIP 1.0.wav');
+    const second = analyse('Beat Idea - Revisit May 3 WIP 2.wav');
+    assert.deepEqual([first.title, first.dateKeyed, first.weak], ['may 3', true, false]);
+    assert.deepEqual([second.title, second.bareNumber], ['may 3', '2']);
+    assert.equal(analyse('Beat Idea - Revisit May 3 Sample V1.wav').title, 'revisit may 3 sample', 'a name beside the date keeps it');
+    assert.equal(analyse('Beat Idea - WIP 2.wav').title, '', 'no date: still empty');
 });

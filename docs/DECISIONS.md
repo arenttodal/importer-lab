@@ -3,6 +3,18 @@
 Newest first. Each entry: what was decided, why, and what would change it. Conflicts between the spec
 and the brief are in `docs/CONFLICTS.md`; this log records how the build resolved them.
 
+## 2026-11-08 — 0.4.0-dev.10: two fixes from the 22:44 check
+
+**D78. A category phrase at the end describes the file.** A segment after the title that starts with a
+category of two or more words ("music bed", "beat idea", "sound design"…), spaced or written as one word
+("Musicbed"), goes to the version label. One-word categories ("jam", "sample", "content") can be part of a
+name, so they stay title at the end. Replay: 2025 catalog 553 → 549 songs, 2024 845 → 844; no song the
+producer marked right changed.
+
+**D79. The date is the title of last resort.** When the stage, version and date words would leave a title
+empty, the date stays the title (dated, so it only meets songs of the same day and prefix). Before, the
+empty title made each take an unclear song of its own.
+
 ## 2026-11-08 — 0.4.0: M4 (the AI pass)
 
 **D71. Model and provider.** The spec leaves the model to Ross. The lab uses Anthropic's Claude through the

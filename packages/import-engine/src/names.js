@@ -139,6 +139,13 @@ function isLabelSegment(tokens, options) {
     return false;
 }
 
+// A later segment that starts with a category phrase of two or more words, spaced or written as one
+// word ("- Musicbed Idea 1.1", "- Music Bed 2 Copy", "- Sound Design 2"), describes what the file is for;
+// it is not title. One-word categories ("- Jam", "- Sample") can be part of a name, so they stay.
+function startsWithCategoryPhrase(tokens, categories) {
+    return categories.some((words) => words.length >= 2 && (startsWith(tokens, words) || tokens[0] === words.join('')));
+}
+
 // A title too weak to identify a song on its own: empty, generic, or only weekday/time words.
 function isWeakTitle(tokens) {
     if (tokens.length === 0) return true;
@@ -310,7 +317,7 @@ function analyseName(file, ctx, options = {}) {
         let titleTokens = [];
         let label = [];
         list.forEach((tokens, index) => {
-            if (label.length || (index > 0 && isLabelSegment(tokens, options))) label.push(...tokens);
+            if (label.length || (index > 0 && (isLabelSegment(tokens, options) || startsWithCategoryPhrase(tokens, ctx.categories || CATEGORIES)))) label.push(...tokens);
             else titleTokens.push(...tokens);
         });
         // A version token after the title has begun ends it: "Glass Track Remake V2 New Piano" is
@@ -406,7 +413,9 @@ function reduceTitle(input, ctx, options, setAside, namespace = null) {
         }
     }
 
-    // Trailing words, repeated until nothing more comes off.
+    // Trailing words, repeated until nothing more comes off. A date that comes off is set aside only
+    // if a title remains; otherwise the date is the title ("Revisit May 3 WIP 2" is "may 3").
+    let dateTaken = null;
     for (let changed = true; changed && tokens.length > 1; ) {
         changed = false;
         const last = tokens[tokens.length - 1];
@@ -425,8 +434,8 @@ function reduceTitle(input, ctx, options, setAside, namespace = null) {
             continue;
         }
         const dateLength = trailingDateLength(tokens);
-        if (dateLength && !isWeakTitle(tokens.slice(0, -dateLength))) {
-            setAside('date', tokens.slice(-dateLength));
+        if (dateLength && !dateTaken && !isWeakTitle(tokens.slice(0, -dateLength))) {
+            dateTaken = tokens.slice(-dateLength);
             tokens = tokens.slice(0, -dateLength);
             changed = true;
             continue;
@@ -442,6 +451,8 @@ function reduceTitle(input, ctx, options, setAside, namespace = null) {
         setAside(wordRule(tokens[0], options), tokens);
         tokens = [];
     }
+    if (dateTaken && tokens.length === 0) return dateTaken;
+    if (dateTaken) setAside('date', dateTaken);
     return tokens;
 }
 
