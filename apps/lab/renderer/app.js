@@ -188,6 +188,7 @@ const PHASE_TEXT = {
     clues: 'Reading projects and audio lengths (files on this Mac only)…',
     baseline: "Running today's importer for comparison…",
     grouping: 'Putting files together into songs…',
+    ai: 'Asking AI about the unclear songs…',
     done: 'Done'
 };
 
@@ -205,8 +206,14 @@ function addLiveSongs(names) {
     renderLiveSongs();
 }
 
+const money = (dollars) => `$${(dollars || 0).toFixed(dollars && dollars < 0.1 ? 4 : 2)}`;
+
 function onProgress(progress) {
-    $('scanPhase').textContent = `${PHASE_TEXT[progress.phase] || progress.phase} ${progress.files.toLocaleString()} files so far.`;
+    $('scanPhase').textContent =
+        progress.phase === 'ai'
+            ? `${PHASE_TEXT.ai} ${(progress.aiDone || 0).toLocaleString()} of ${(progress.aiItems || 0).toLocaleString()} answered · AI cost so far ${money(progress.aiCostUsd)} of ${money(state.settings.ai.maxCostUsd)}.`
+            : `${PHASE_TEXT[progress.phase] || progress.phase} ${progress.files.toLocaleString()} files so far.`;
+    if (progress.phase === 'ai') return;
     const counts = progress.typeCounts || {};
     $('countBounces').textContent = (counts.bounces || 0).toLocaleString();
     $('countProjects').textContent = (counts.projects || 0).toLocaleString();
@@ -263,6 +270,7 @@ function songRow(song) {
         song.kind !== 'song' ? `<span class="std-chip">${KIND_LABEL[song.kind]}</span>` : '',
         song.kind === 'song' && BAND_LABEL[song.band] ? `<span class="std-chip">${BAND_LABEL[song.band]}</span>` : '',
         song.review ? '<span class="std-chip">Review</span>' : '',
+        song.decidedBy === 'ai' ? '<span class="std-chip">AI suggestion</span>' : '',
         song.existingSongId ? '<span class="std-chip">In your Library</span>' : '',
         cloud ? '<span class="std-chip">Cloud</span>' : ''
     ].join('');
@@ -527,8 +535,53 @@ async function exportResults() {
 
 // ── Settings and Lab tools ──
 
+const MODEL_LABEL = {
+    'claude-haiku-5-5': 'Claude Haiku 5.5 (fast, lowest cost)',
+    'claude-sonnet-5-5': 'Claude Sonnet 5.5',
+    'claude-opus-5-5': 'Claude Opus 5.5 (highest cost)'
+};
+
+function applyAiSettings(ai) {
+    $('aiEnabled').checked = ai.enabled;
+    $('aiMaxCostUsd').value = ai.maxCostUsd;
+    const options = (selected, withNone) =>
+        (withNone ? [`<option value=""${selected ? '' : ' selected'}>None</option>`] : [])
+            .concat(ai.models.map((model) => `<option value="${model}"${model === selected ? ' selected' : ''}>${escapeHtml(MODEL_LABEL[model] || model)}</option>`))
+            .join('');
+    $('aiModel').innerHTML = options(ai.model, false);
+    $('aiLargeModel').innerHTML = options(ai.largeModel, true);
+    $('aiKeyStatus').textContent = ai.key.hasKey ? `Key set (from ${ai.key.source})` : 'No key yet';
+    $('aiRemoveKey').hidden = ai.key.source !== 'Settings';
+}
+
+function openAiKey() {
+    const body = document.createElement('div');
+    body.innerHTML = `<label class="std-form-row"><span class="std-form-label">Anthropic API key</span><input class="std-form-input" type="password" autocomplete="off" spellcheck="false" /></label>
+        <p class="std-form-help">Kept encrypted on this Mac by the system keychain. Used only for the AI pass, and only while it is switched on.</p>`;
+    const input = body.querySelector('input');
+    const modal = window.createStandardModal({
+        archetype: 'compact',
+        title: 'Add AI key',
+        body,
+        primaryAction: {
+            label: 'Save',
+            onClick: async () => {
+                try {
+                    applySettings(await api.saveAiKey(input.value));
+                    modal.close();
+                    window.showToast?.('Key saved.', 'success');
+                } catch (error) {
+                    window.showToast?.(cleanError(error), 'error');
+                }
+            }
+        }
+    });
+    input.focus();
+}
+
 function applySettings(settings) {
     state.settings = settings;
+    applyAiSettings(settings.ai);
     $('openLab').hidden = !settings.showLabTools;
     $('groupEdits').checked = settings.scanOptions.groupEdits !== false;
     $('courseNamespaces').value = (settings.scanOptions.courseNamespaces || []).join(', ');
@@ -617,7 +670,7 @@ function renderLab() {
             ['Reused from the last scan', view.notes.fromScratch ? 'none (scan from scratch)' : view.notes.reusedFromStore],
             ['Scan time', `${(view.stats.durationMs / 1000).toFixed(2)} s`],
             ...timingRows(view.notes.timings || {}, view.notes.clueCounts || {}, view.notes.readers || {}),
-            ['AI cost', `$${view.stats.aiCostUsd.toFixed(2)}`],
+            ...aiRows(view),
             ['Engine / name and scoring policy', `${view.engineVersion} / ${view.policyVersion}`],
             ['Contract', view.contractVersion],
             ['Main app commit', info.pinnedCommit.slice(0, 8)],
@@ -626,7 +679,27 @@ function renderLab() {
         ];
         $('metricsRows').innerHTML = rows.map(([key, value]) => `<tr><td class="lab-muted">${escapeHtml(key)}</td><td>${escapeHtml(value)}</td></tr>`).join('');
     });
-    $('logText').textContent = [...view.notes.baselineLog, '', JSON.stringify({ typeCounts: view.notes.typeCounts, stats: view.stats }, null, 2)].join('\n');
+    const aiLog = view.notes.ai
+        ? [
+              '',
+              'AI calls (one line per call; no key, no paths):',
+              ...view.notes.ai.calls.map((call) => `${call.at} ${call.model} · ${call.items} songs · ${call.inputTokens} in / ${call.outputTokens} out tokens (cache ${call.cacheReadTokens} read, ${call.cacheWriteTokens} written) · ${money(call.costUsd)} · ${call.durationMs} ms · ${call.stopReason}`),
+              ...view.notes.ai.errors.map((error) => `AI error: ${error}`)
+          ]
+        : [];
+    $('logText').textContent = [...view.notes.baselineLog, ...aiLog, '', JSON.stringify({ typeCounts: view.notes.typeCounts, stats: view.stats }, null, 2)].join('\n');
+}
+
+function aiRows(view) {
+    const ai = view.notes.ai;
+    if (!ai) return [['AI pass', 'off (everything above is without AI)']];
+    return [
+        ['AI cost', `${money(ai.costUsd)}${ai.capped ? ' (stopped at the cap)' : ''}`],
+        ['AI: unclear songs asked / answered / from earlier answers', `${ai.asked} / ${ai.answered} / ${ai.fromCache}`],
+        ['AI: suggestions / own song / not sure / merged (same name)', `${ai.suggested} / ${ai.ownSong} / ${ai.notSure} / ${ai.merged}`],
+        ['AI: calls / models', `${ai.calls.length} / ${[...new Set(ai.calls.map((call) => call.model))].join(', ') || ai.model}`],
+        ['AI: left unasked by the cap / answers dropped / errors', `${ai.skippedByCap} / ${ai.dropped} / ${ai.errors.length}`]
+    ];
 }
 
 const TIMING_LABEL = {
@@ -639,6 +712,7 @@ const TIMING_LABEL = {
     duplicatesMs: 'Time: identical-audio check',
     baselineMs: "Time: today's importer (both modes)",
     groupingMs: 'Time: new engine grouping',
+    aiMs: 'Time: AI pass',
     storeSaveMs: 'Time: saving the scan',
     totalMs: 'Time: total'
 };
@@ -730,14 +804,58 @@ async function renderRules() {
     const counts = rules.fromMarks;
     $('rulesFromMarks').textContent = `${counts.together} keep-together, ${counts.apart} keep-apart, ${counts.remove} file-out and ${counts.names} rename rules from your marks.`;
     $('rulesUseMarks').checked = rules.useMarks;
+    renderCorrections();
 }
 
-// ── "Check 50 songs": a random sample, one song at a time, answered with one click ──
+const CORRECTION_TEXT = {
+    split: (mark) => `Should be split: “${mark.songName}”`,
+    merge: (mark) => `Should be merged: “${mark.songName}” with “${mark.mergeWithSongName || '…'}”`,
+    'wrong-song': (mark) => (mark.target === 'file' ? `Wrong song: “${mark.fileName}” is not part of “${mark.songName}”` : `Wrong: “${mark.songName}”`),
+    rename: (mark) => `Rename: “${mark.songName}” to “${mark.newName}”`
+};
+
+async function renderCorrections() {
+    const list = await api.listCorrections();
+    $('rulesCorrections').innerHTML = list.length
+        ? list
+              .map((mark) => {
+                  const text = (CORRECTION_TEXT[mark.kind] || ((m) => m.songName))(mark);
+                  const meta = `${new Date(mark.createdAt).toLocaleString()}${mark.check ? ' · in a check' : ''} · engine ${mark.engineVersion || 'unknown'}`;
+                  return `<div class="std-list-row"><span class="std-list-label">${escapeHtml(text)}<br /><span class="std-list-meta">${escapeHtml(meta)}</span></span><button class="std-inline-btn" type="button" data-undo-correction="${escapeHtml(mark.catalogId)}/${escapeHtml(mark.id)}">Undo</button></div>`;
+              })
+              .join('')
+        : '<div class="lab-muted">No corrections yet.</div>';
+}
+
+// ── "Check songs" (10, 20 or 50): a random sample, one song at a time, answered with one click ──
 
 // The sample comes from the main process: weighted toward songs to check, unclear songs and songs
 // with several files, leaving out songs already checked (apps/lab/src/check.js).
-async function startCheck() {
-    const picks = await api.checkSample();
+function chooseCheck() {
+    const body = document.createElement('div');
+    body.innerHTML = `<div class="std-radio-group">
+        <label class="std-radio"><input class="std-radio-input" type="radio" name="checkSize" value="10" checked /><span class="std-radio-dot"></span><span class="std-radio-label">Short: 10 songs</span></label>
+        <label class="std-radio"><input class="std-radio-input" type="radio" name="checkSize" value="20" /><span class="std-radio-dot"></span><span class="std-radio-label">Standard: 20 songs</span></label>
+        <label class="std-radio"><input class="std-radio-input" type="radio" name="checkSize" value="50" /><span class="std-radio-dot"></span><span class="std-radio-label">Deep: 50 songs</span></label>
+    </div>`;
+    const modal = window.createStandardModal({
+        archetype: 'compact',
+        title: 'Check songs',
+        subtitle: 'A random sample, weighted toward the songs most likely to be wrong. Every check adds to the confidence in Metrics.',
+        body,
+        primaryAction: {
+            label: 'Start',
+            onClick: () => {
+                const size = Number(body.querySelector('input[name="checkSize"]:checked').value);
+                modal.close();
+                startCheck(size);
+            }
+        }
+    });
+}
+
+async function startCheck(size) {
+    const picks = await api.checkSample(size);
     if (!picks.length) return window.showToast?.('Every song has been checked.', 'success');
     state.check = { scanId: state.view.scanId, keys: picks.map((pick) => pick.key), picks: new Map(picks.map((pick) => [pick.key, pick])), index: 0, answers: {} };
     showCheckSong();
@@ -878,7 +996,16 @@ $('permissionContinue').addEventListener('click', async () => {
 $('cancelScan').addEventListener('click', () => api.cancelScan());
 $('seeCatalog').addEventListener('click', () => navigate('catalog'));
 $('rescan').addEventListener('click', newScan);
-$('checkStart').addEventListener('click', startCheck);
+$('checkStart').addEventListener('click', chooseCheck);
+$('rulesCorrections').addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-undo-correction]');
+    if (!button) return;
+    const [catalogId, markId] = button.dataset.undoCorrection.split('/');
+    await api.removeCorrection(catalogId, markId);
+    state.marks = (state.marks || []).filter((mark) => mark.id !== markId);
+    renderRules();
+    window.showToast?.('Undone. The next scan no longer applies it.', 'success');
+});
 $('scanFromScratch').addEventListener('click', () => startScan({ fromScratch: true }));
 $('questionsOpen').addEventListener('click', openQuestions);
 $('rulesAsk').addEventListener('click', openQuestions);
@@ -918,6 +1045,19 @@ $('toggleOtherKinds').addEventListener('click', () => {
     renderCatalog();
 });
 $('groupEdits').addEventListener('change', async (event) => applySettings(await api.setSetting('groupEdits', event.target.checked)));
+$('aiEnabled').addEventListener('change', async (event) => applySettings(await api.setSetting('aiEnabled', event.target.checked)));
+$('aiModel').addEventListener('change', async (event) => applySettings(await api.setSetting('aiModel', event.target.value)));
+$('aiLargeModel').addEventListener('change', async (event) => applySettings(await api.setSetting('aiLargeModel', event.target.value)));
+$('aiMaxCostUsd').addEventListener('change', async (event) => {
+    try {
+        applySettings(await api.setSetting('aiMaxCostUsd', event.target.value));
+    } catch (error) {
+        window.showToast?.(cleanError(error), 'error');
+        applySettings(state.settings);
+    }
+});
+$('aiAddKey').addEventListener('click', openAiKey);
+$('aiRemoveKey').addEventListener('click', async () => applySettings(await api.removeAiKey()));
 $('courseNamespaces').addEventListener('change', async (event) => applySettings(await api.setSetting('courseNamespaces', event.target.value)));
 $('loadExistingSongs').addEventListener('click', async () => {
     $('existingSongsError').hidden = true;

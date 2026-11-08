@@ -2,7 +2,7 @@
 // 1.0.0 was copied verbatim from docs/INTEGRATION_BRIEF.md §3.5 (the rewritten contract v1).
 // 1.1.0 adds optional fields only (marked "1.1.0"): every 1.0.0 consumer keeps working.
 // Runtime constants live in index.js. Check with: npm run typecheck
-// contract v1.1.0 — semver; any breaking change bumps the major version
+// contract v1.4.0 — semver; any breaking change bumps the major version
 
 // CHANGED from spec: plural, matching tracks.file_type convention, plus 'videos' (IMP-FN-033)
 export type FileType = "bounces" | "stems" | "projects" | "videos" | "unknown";
@@ -13,7 +13,12 @@ export interface ScanRequest {
   options: {
     followSymlinks: false; // fixed in v1 — correct, see Traps (ESYMLINK_CONTENT)
     includeCloudPlaceholders: "skip" | "list"; // XX needs Adapter 9; app cannot tell placeholder from 0-byte
-    ai: { enabled: boolean; maxCostUsd: number; model: string };
+    ai: {
+      enabled: boolean;
+      maxCostUsd: number;
+      model: string;
+      largeModel?: string; // 1.4.0 — re-answers a chunk when the small model is unsure on more than 25% of it
+    };
     mergeRule: "exact-identity-only" | "multi-clue";
     identityPolicyVersion: string; // ADDED — required to A/B the normalizer reconciliation
     groupEdits?: boolean; // 1.1.0 — short/long/track edits are versions of one song (default true)
@@ -45,7 +50,7 @@ export interface ExistingSong {
 }
 
 export interface ProposedCatalog {
-  contractVersion: "1.0.0" | "1.1.0" | "1.2.0" | "1.3.0";
+  contractVersion: "1.0.0" | "1.1.0" | "1.2.0" | "1.3.0" | "1.4.0";
   engineVersion: string;
   policyVersion: string;
   songs: ProposedSong[];
@@ -176,7 +181,7 @@ export interface ScanStats {
   placeholdersSkipped: number; // ADDED
 }
 
-export declare const CONTRACT_VERSION: "1.1.0";
+export declare const CONTRACT_VERSION: "1.4.0";
 export declare const SONG_KINDS: readonly SongKind[];
 export declare const FILE_TYPES: readonly FileType[];
 export declare const BANDS: readonly ProposedSong["band"][];

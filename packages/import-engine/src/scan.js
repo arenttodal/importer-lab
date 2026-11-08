@@ -1,9 +1,9 @@
 'use strict';
 
-// The engine pipeline (SPEC section 5), steps 1–6 and 8:
+// The engine pipeline (SPEC section 5):
 //   crawl -> classify -> (placeholders) -> baseline (today's importer, both modes)
-//   -> read clues (non-placeholders only) -> group, score, band -> ProposedCatalog (contract 1.1.0).
-// Step 7 (the AI pass) arrives in M4.
+//   -> read clues (non-placeholders only) -> group, score, band
+//   -> (optional) AI pass on unclear songs -> ProposedCatalog (contract 1.4.0).
 
 const { CONTRACT_VERSION } = require('../../contract');
 const { crawl } = require('./crawl');
@@ -14,9 +14,11 @@ const { isPlaceholderCandidate, confirmPlaceholders } = require('./placeholder')
 const { groupCatalog } = require('./group');
 const { readClues } = require('./read-clues');
 const { POLICY_VERSION: NAME_POLICY_VERSION } = require('./names');
+const { runAiPass } = require('./ai/pass');
+const { priceOf } = require('./ai/pricing');
 const scoring = require('../policy/scoring-v1.json');
 
-const ENGINE_VERSION = '0.3.0-m3';
+const ENGINE_VERSION = '0.4.0-m4';
 const POLICY_VERSION = `${NAME_POLICY_VERSION}+${scoring.version}`;
 const PROGRESS_EVERY = 250;
 // While crawling, the engine groups the files found so far, so songs appear as they are found.
@@ -28,7 +30,11 @@ function validateRequest(request) {
     const options = request.options || {};
     if (options.followSymlinks !== false) throw new Error('followSymlinks must be false in contract v1');
     if (!['skip', 'list'].includes(options.includeCloudPlaceholders)) throw new Error('includeCloudPlaceholders must be "skip" or "list"');
-    if (options.ai && options.ai.enabled) throw new Error('The AI pass is not built yet (milestone M4); switch AI off');
+    if (options.ai && options.ai.enabled) {
+        if (!(Number.isFinite(options.ai.maxCostUsd) && options.ai.maxCostUsd >= 0)) throw new Error('The AI pass needs a cost cap in dollars');
+        priceOf(options.ai.model);
+        if (options.ai.largeModel) priceOf(options.ai.largeModel);
+    }
     if (!['exact-identity-only', 'multi-clue'].includes(options.mergeRule)) throw new Error('mergeRule must be "exact-identity-only" or "multi-clue"');
 }
 
@@ -95,7 +101,9 @@ function songFacts(song) {
 
 async function scanCatalog(request, hooks = {}) {
     validateRequest(request);
-    const { previous = () => null, onProgress = () => {}, isCancelled = () => false, excludePaths = [], userRules = [] } = hooks;
+    const { previous = () => null, onProgress = () => {}, isCancelled = () => false, excludePaths = [], userRules = [], ai = null } = hooks;
+    const aiOptions = request.options.ai && request.options.ai.enabled ? request.options.ai : null;
+    if (aiOptions && !(ai && ai.client)) throw new Error('The AI pass is on but there is no AI key: add one in Settings, or switch AI off');
     const startedAt = Date.now();
     const counters = {};
     const entries = []; // { item, classification }
@@ -103,7 +111,7 @@ async function scanCatalog(request, hooks = {}) {
     let nextPreviewAt = PREVIEW_MIN_FILES;
     let reused = 0;
     // Time per step (ms), reported in Metrics and the results file.
-    const timings = { crawlMs: 0, previewGroupingMs: 0, placeholdersMs: 0, readFilesMs: 0, linksMs: 0, duplicatesMs: 0, baselineMs: 0, groupingMs: 0 };
+    const timings = { crawlMs: 0, previewGroupingMs: 0, placeholdersMs: 0, readFilesMs: 0, linksMs: 0, duplicatesMs: 0, baselineMs: 0, groupingMs: 0, aiMs: 0 };
     let stepStart = Date.now();
     const endStep = (step) => {
         timings[step] += Date.now() - stepStart;
@@ -185,8 +193,25 @@ async function scanCatalog(request, hooks = {}) {
 
     progress('grouping');
     const engine = groupCatalog(files.filter((file) => file.type !== 'unknown'), { ...groupingOptions(request, clues.links), existingSongs: existingGroups });
-    for (const song of engine.songs) song.facts = songFacts(song);
     endStep('groupingMs');
+
+    // Step 7: the optional AI pass, on unclear songs only, with a cost meter and a hard cap.
+    let aiStats = null;
+    if (aiOptions) {
+        progress('ai', { aiCostUsd: 0 });
+        aiStats = await runAiPass(engine.songs, {
+            client: ai.client,
+            cache: ai.cache,
+            model: aiOptions.model,
+            largeModel: aiOptions.largeModel || null,
+            maxCostUsd: aiOptions.maxCostUsd,
+            isCancelled,
+            onProgress: (meter) => progress('ai', meter)
+        });
+        if (isCancelled()) return { cancelled: true };
+        endStep('aiMs');
+    }
+    for (const song of engine.songs) song.facts = songFacts(song);
     const realSongs = engine.songs.filter((song) => song.kind === 'song');
     const groupedFiles = realSongs.reduce((sum, song) => sum + song.files.length, 0);
     const sureFiles = realSongs.filter((song) => song.band === 'sure').reduce((sum, song) => sum + song.files.length, 0);
@@ -207,7 +232,7 @@ async function scanCatalog(request, hooks = {}) {
             songs: realSongs.length,
             autoMatchedShare: groupedFiles ? Math.round((sureFiles / groupedFiles) * 1000) / 1000 : 0,
             durationMs: Date.now() - startedAt,
-            aiCostUsd: 0,
+            aiCostUsd: aiStats ? aiStats.costUsd : 0,
             cappedAt: null,
             placeholdersSkipped: includePlaceholders ? 0 : placeholdersFound
         }
@@ -232,7 +257,8 @@ async function scanCatalog(request, hooks = {}) {
             learned: engine.context,
             courseSuggestions: engine.context.courseSuggestions || [],
             questions: engine.context.questions || [],
-            baselineLog: baseline.log
+            baselineLog: baseline.log,
+            ai: aiStats
         },
         records: kept.map(({ item, derived }) => ({ item, derived }))
     };

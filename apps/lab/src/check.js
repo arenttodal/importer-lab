@@ -9,6 +9,8 @@
 const crypto = require('node:crypto');
 
 const SESSION_SIZE = 50;
+// A short, a standard and a deep check; the producer picks one each time.
+const CHECK_SIZES = [10, 20, 50];
 const TARGET_MARKS = 100;
 // Share of the sample drawn from each stratum; unused share goes to the others.
 const SHARES = { unsure: 0.4, unclear: 0.2, 'sure-multi': 0.25, 'sure-single': 0.15 };
@@ -30,6 +32,7 @@ function shuffle(items, random = (size) => crypto.randomInt(size)) {
 
 // songs: renderer songs (key, band, fileIds, kind). Already-checked keys are left out.
 function drawSample(songs, { size = SESSION_SIZE, exclude = [], random } = {}) {
+    if (!CHECK_SIZES.includes(size)) throw new Error('A check is 10, 20 or 50 songs');
     const skip = new Set(exclude);
     const candidates = songs.filter((song) => song.kind === 'song' && !skip.has(song.key));
     const byStratum = {};
@@ -119,4 +122,4 @@ function summarize(marks) {
     };
 }
 
-module.exports = { drawSample, lowerBound, summarize, stratumOf, SESSION_SIZE, TARGET_MARKS };
+module.exports = { drawSample, lowerBound, summarize, stratumOf, SESSION_SIZE, CHECK_SIZES, TARGET_MARKS };

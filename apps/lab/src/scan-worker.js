@@ -10,8 +10,26 @@ installFsGuard({ allowedRoots: [workerData.dataDir] });
 
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { scanCatalog } = require('../../../packages/import-engine/src');
+const fs = require('node:fs');
+const { scanCatalog, createClaudeClient } = require('../../../packages/import-engine/src');
 const { openStore } = require('./store');
+
+// AI answers are cached per item in the data folder, so a re-run costs nothing.
+const AI_CACHE = path.join(workerData.dataDir, 'ai-cache.json');
+const AI_CACHE_LIMIT = 50000;
+
+function loadAiCache() {
+    try {
+        return new Map(Object.entries(JSON.parse(fs.readFileSync(AI_CACHE, 'utf8'))));
+    } catch {
+        return new Map();
+    }
+}
+
+function saveAiCache(cache) {
+    const entries = [...cache].slice(-AI_CACHE_LIMIT);
+    fs.writeFileSync(AI_CACHE, JSON.stringify(Object.fromEntries(entries)));
+}
 
 let cancelled = false;
 parentPort.on('message', (message) => {
@@ -22,6 +40,7 @@ async function run() {
     const startedAt = Date.now();
     const store = openStore(path.join(workerData.dataDir, 'evidence.sqlite'));
     let storeLookupMs = 0;
+    const ai = workerData.aiKey ? { client: createClaudeClient({ apiKey: workerData.aiKey }), cache: loadAiCache() } : null;
     try {
         const result = await scanCatalog(workerData.request, {
             previous: (item) => {
@@ -35,8 +54,10 @@ async function run() {
             },
             onProgress: (progress) => parentPort.postMessage({ type: 'progress', progress }),
             isCancelled: () => cancelled,
-            excludePaths: workerData.excludePaths || []
+            excludePaths: workerData.excludePaths || [],
+            ai
         });
+        if (ai) saveAiCache(ai.cache);
         if (result.cancelled) return { type: 'cancelled' };
         const scanId = crypto.randomUUID();
         const saveStart = Date.now();

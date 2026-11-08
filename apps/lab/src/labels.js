@@ -83,4 +83,24 @@ function removeMark(dataDir, id, markId) {
     saveLabels(dataDir, labels);
 }
 
-module.exports = { catalogId, loadLabels, addMark, updateMark, removeMark };
+// "Your corrections": every mark that changes the result (all kinds but "right"), from every
+// catalog, newest first, so a mistaken one can be undone. Each mark becomes a rule on the next scan.
+function listCorrections(dataDir) {
+    let names = [];
+    try {
+        names = fs.readdirSync(path.join(dataDir, 'labels')).filter((name) => name.endsWith('.json'));
+    } catch {
+        return [];
+    }
+    const list = [];
+    for (const name of names) {
+        const id = name.replace(/\.json$/, '');
+        for (const mark of loadLabels(dataDir, id).marks) {
+            if (mark.kind === 'right') continue;
+            list.push({ id: mark.id, catalogId: id, kind: mark.kind, target: mark.target, songName: mark.songName, fileName: mark.fileName, mergeWithSongName: mark.mergeWithSongName, newName: mark.newName, check: mark.check, createdAt: mark.createdAt, engineVersion: mark.engineVersion });
+        }
+    }
+    return list.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+
+module.exports = { catalogId, loadLabels, addMark, updateMark, removeMark, listCorrections };

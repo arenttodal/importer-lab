@@ -58,6 +58,9 @@ function buildResults({ view, labels, app }) {
             fromScratch: Boolean(view.notes.fromScratch),
             clueCounts: view.notes.clueCounts || {},
             readers: view.notes.readers || {},
+            // The AI pass: counts, cost and one line per call (models, tokens, dollars). No key.
+            ai: view.notes.ai || null,
+            aiCostUsd: view.stats.aiCostUsd || 0,
             engineVersion: view.engineVersion,
             policyVersion: view.policyVersion
         },

@@ -7,8 +7,8 @@ finds as songs, using The Library's own import code and look. It never changes, 
 downloads anything. Spec: `docs/SPEC.md`. Facts about the main app: `docs/INTEGRATION_BRIEF.md`.
 Rules for coding agents: `CLAUDE.md`.
 
-Status: **M1 + user flow.** Songs come from today's importer for now; the new engine's clues, scores and
-bands arrive in M2.
+Status: **M4.** The new engine groups songs from clues, scores and bands (M2), learns from your marks
+and answers (M3), and can ask AI about the songs it cannot place, with a cost cap (M4, off by default).
 
 ## Install (no Terminal)
 
@@ -34,8 +34,8 @@ bands arrive in M2.
    material, sample packs and stem-only sets are not counted as songs; a button shows them. Click a
    song for its files, the reasons they are together, its versions, stem sets, project facts (tempo,
    length) and songs it might be the same as.
-6. **This is wrong** on a song or a file saves a mark in two clicks. **Check 50 songs** shows a random
-   sample, weighted toward songs to check and songs with several files, one song at a time with
+6. **This is wrong** on a song or a file saves a mark in two clicks. **Check songs…** asks for a short
+   (10), standard (20) or deep (50) check, then shows a random sample, weighted toward songs to check and songs with several files, one song at a time with
    **Right**, **Wrong**, **Should be split**, **Should be merged…** and **Skip**, plus the closest
    similar entries with a **Same song** button. The answers go in the results file, and Metrics shows
    the confidence they give. If the catalog looks like it holds course material, the app names the
@@ -43,7 +43,8 @@ bands arrive in M2.
    may or may not belong to it are marked **Review**. **Teach the importer** asks a few questions
    after a scan ("What is Quill? A band, a series, a course, a sample pack, a collaborator, or just a
    word?"); answers and marks (including **Rename**) become rules applied first on the next scan, listed
-   under Lab → **Rules**.
+   under Lab → **Rules**. **Your corrections** there lists every mark that changes the result, with
+   **Undo** for one made by mistake.
 7. **Send results to the team** saves one file (names, counts, marks and timings — no paths, no audio)
    and shows it in Finder, ready to attach to a message.
 
@@ -60,13 +61,27 @@ file is refused). Options apply from the next scan. `npm run test:adversarial` r
 plus the engine's adversarial cases. **Scan from scratch** reads every file again,
 ignoring what earlier scans stored, to time a first scan.
 
+**AI pass** (Lab → Scan options, off by default): asks a model about the songs the engine marks unclear,
+nothing else. Only names, dates, sizes, lengths, folder depth, the names of files beside them and the
+engine's clues are sent: never a path, audio or account data. An answer never makes a song sure: "same
+song as …" becomes the first suggestion on that song (it merges only when the names have the same
+identity, the merge rule), and a sure "a song of its own" moves it from unclear to "check". A cost cap
+per scan (default $0.50) stops before any call that could pass it, the scan screen shows the cost so
+far, and Metrics and Logs show every call (model, tokens, dollars). Answers are kept in the data folder,
+so scanning again costs nothing. Models: Claude Haiku 5.5 first, Claude Sonnet 5.5 for a batch where
+Haiku is unsure on more than a quarter (both changeable). The key: **Add key…** in the same section
+(kept encrypted by the macOS keychain in the lab's folder), or `ANTHROPIC_API_KEY` in an untracked
+`.env` file when running from source (see `.env.example`). The key never ships inside the app.
+
 How songs are grouped, and every failure of today's importer the lab fixes, is in `docs/FINDINGS.md`.
 
 ## What it writes
 
 Only its own folder: `~/Library/Application Support/Importer Lab/lab-data/` — settings, the scan store
-(`evidence.sqlite`), marks (`labels/`) and exported results (`exports/`). Every other write, rename or
-delete is blocked by the file-system guard. The window cannot reach the network.
+(`evidence.sqlite`), marks (`labels/`), rules (`rules.json`), kept AI answers (`ai-cache.json`), the
+encrypted AI key (`ai-key.bin`, only if added) and exported results (`exports/`). Every other write,
+rename or delete is blocked by the file-system guard. The window cannot reach the network; the only
+network call is the optional AI pass, from the scan worker, to Anthropic's API.
 
 ## Builds
 
@@ -132,7 +147,7 @@ npm run lab
 | --- | --- |
 | `npm run lab` | Start the lab from source |
 | `npm test` | All tests, on Electron's own Node (24.18.0) |
-| `npm run scan -- <folder>... [--groups] [--skip-placeholders]` | Headless scan, same worker and guard |
+| `npm run scan -- <folder>... [--groups] [--skip-placeholders] [--ai[=<cap>]]` | Headless scan, same worker and guard; `--ai` uses the key from `.env` |
 | `npm run fixtures` | Write the synthetic catalog to `fixtures/synthetic/out/` (git-ignored) |
 | `npm run dist:mac` | Build the macOS `.dmg` and `.zip` locally (on a Mac) |
 | `npm run dist:dir` | Build an unpacked app for the current platform (packaging smoke test) |

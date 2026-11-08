@@ -124,7 +124,7 @@
                         <p id="catalogCount" class="lab-lede"></p>
                     </div>
                     <div class="lab-actions">
-                        <button id="checkStart" class="std-modal-btn std-modal-btn--secondary" type="button">Check 50 songs</button>
+                        <button id="checkStart" class="std-modal-btn std-modal-btn--secondary" type="button">Check songs…</button>
                         <button id="rescan" class="std-modal-btn std-modal-btn--secondary" type="button">Scan again</button>
                         <button id="exportResults" class="std-modal-btn std-modal-btn--primary" type="button">Send results to the team</button>
                     </div>
@@ -212,7 +212,7 @@
                 </table>
             </section>
 
-            <!-- End of "Check 50 songs" -->
+            <!-- End of "Check songs" -->
             <section class="lab-screen" data-screen="checkDone" hidden>
                 <h1 class="lab-heading">Thank you</h1>
                 <p id="checkSummary" class="lab-lede"></p>
@@ -255,6 +255,9 @@
                         <div class="std-modal-section-label">What words in your catalog mean</div>
                         <div id="rulesPrefixes" class="std-list"></div>
                         <button id="rulesAsk" class="std-modal-btn std-modal-btn--secondary" type="button">Answer the open questions</button>
+                        <div class="std-modal-section-label lab-spaced">Your corrections</div>
+                        <p class="lab-muted">Marks that change the result. Undo one made by mistake; the next scan no longer applies it.</p>
+                        <div id="rulesCorrections" class="std-list"></div>
                         <div class="std-modal-section-label lab-spaced">Rules from your marks</div>
                         <p id="rulesFromMarks" class="lab-muted"></p>
                         <label class="std-toggle">
@@ -307,11 +310,34 @@
                             </div>
                             <span class="std-form-help">Reads every file again, ignoring what earlier scans stored, to measure a first scan. Still read-only; cloud files are still never opened.</span>
                         </div>
-                        <label class="std-toggle lab-disabled" title="The AI pass arrives in milestone M4">
-                            <input class="std-toggle-input" type="checkbox" disabled />
+                        <div class="std-modal-section-label lab-spaced">AI pass</div>
+                        <label class="std-toggle">
+                            <input id="aiEnabled" class="std-toggle-input" type="checkbox" />
                             <span class="std-toggle-rail"></span>
-                            <span class="std-toggle-label">AI pass on unclear leftovers, with a cost cap (M4 — off)</span>
+                            <span class="std-toggle-label">Ask AI about unclear songs, with a cost cap</span>
                         </label>
+                        <span class="std-form-help">Only names, dates, sizes, lengths and clues are sent; never a path or audio. An AI answer never makes a song sure: it adds a suggestion for you to check. Answers are kept, so scanning again costs nothing.</span>
+                        <label class="std-form-row">
+                            <span class="std-form-label">Cost cap per scan (US dollars)</span>
+                            <input id="aiMaxCostUsd" class="std-form-input" type="number" min="0" max="20" step="0.05" />
+                        </label>
+                        <label class="std-form-row">
+                            <span class="std-form-label">Model</span>
+                            <select id="aiModel" class="std-form-input"></select>
+                        </label>
+                        <label class="std-form-row">
+                            <span class="std-form-label">Larger model, when the first is unsure on more than a quarter of a batch</span>
+                            <select id="aiLargeModel" class="std-form-input"></select>
+                        </label>
+                        <div class="std-form-row">
+                            <span class="std-form-label">AI key</span>
+                            <div class="lab-actions">
+                                <button id="aiAddKey" class="std-modal-btn std-modal-btn--secondary" type="button">Add key…</button>
+                                <button id="aiRemoveKey" class="std-inline-btn" type="button" hidden>Remove</button>
+                                <span id="aiKeyStatus" class="lab-muted"></span>
+                            </div>
+                            <span class="std-form-help">Stored encrypted on this Mac (in the lab's own folder), never inside the app and never in the results you send.</span>
+                        </div>
                     </div>
                 </div>
                 <div data-lab-panel="metrics" hidden>

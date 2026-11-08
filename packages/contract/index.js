@@ -1,8 +1,8 @@
 'use strict';
 
-// Runtime constants for contract v1.1.0. Types are in index.d.ts.
+// Runtime constants for the contract. Types are in index.d.ts.
 
-const CONTRACT_VERSION = '1.3.0';
+const CONTRACT_VERSION = '1.4.0';
 
 const FILE_TYPES = Object.freeze(['bounces', 'stems', 'projects', 'videos', 'unknown']);
 

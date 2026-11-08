@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { drawSample, lowerBound, summarize } = require('../src/check');
+const { drawSample, lowerBound, summarize, CHECK_SIZES } = require('../src/check');
 
 function songs() {
     const list = [];
@@ -33,6 +33,17 @@ test('check sample: a small stratum gives its share to the others; checked songs
     const sample = drawSample(list, { size: 50, exclude: ['u0', 'u1'] });
     assert.equal(sample.length, 50);
     assert.ok(!sample.some((pick) => pick.key === 'u0' || pick.key === 'u1'));
+});
+
+test('check sample: a short check of 10 or 20 keeps the weighting', () => {
+    const short = drawSample(songs(), { size: 10 });
+    assert.equal(short.length, 10);
+    const count = (sample, stratum) => sample.filter((pick) => pick.stratum === stratum).length;
+    assert.deepEqual(['unsure', 'unclear', 'sure-multi', 'sure-single'].map((name) => count(short, name)), [4, 2, 3, 1]);
+    const standard = drawSample(songs(), { size: 20 });
+    assert.deepEqual(['unsure', 'unclear', 'sure-multi', 'sure-single'].map((name) => count(standard, name)), [8, 4, 5, 3]);
+    assert.deepEqual(CHECK_SIZES, [10, 20, 50]);
+    assert.throws(() => drawSample(songs(), { size: 7 }), /10, 20 or 50/);
 });
 
 test('confidence: 27 of 27 right means at least 89% at 95% confidence; 0 answers means none', () => {

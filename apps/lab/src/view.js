@@ -54,6 +54,7 @@ function rendererSong(song) {
         precheck: song.precheck,
         unsure: song.band !== 'sure',
         review: Boolean(song.review),
+        decidedBy: song.decidedBy || 'rules',
         namespace: song.namespace,
         counts,
         countsLine: ['bounces', 'projects', 'stems', 'videos'].filter((type) => counts[type]).map((type) => plural(counts[type], type)).join(' · '),
@@ -117,7 +118,8 @@ function toRendererView(result, roots) {
             readers: result.notes.readers || {},
             links: result.notes.links || 0,
             contributors: result.notes.learned?.contributors || [],
-            baselineLog: result.notes.baselineLog
+            baselineLog: result.notes.baselineLog,
+            ai: result.notes.ai || null
         },
         files: files.map(rendererFile),
         songs: [...catalog.songs.map(rendererSong), ...(looseStems.length ? [looseStemsEntry(looseStems)] : [])],

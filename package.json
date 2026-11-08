@@ -1,6 +1,6 @@
 {
   "name": "importer-lab",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Read-only lab that runs the next-generation import engine on real drives.",
   "license": "SEE LICENSE IN LICENSE",
@@ -94,5 +94,8 @@
       "target": "dir"
     },
     "publish": null
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "1.6.0"
   }
 }

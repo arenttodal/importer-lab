@@ -3,6 +3,46 @@
 Newest first. Each entry: what was decided, why, and what would change it. Conflicts between the spec
 and the brief are in `docs/CONFLICTS.md`; this log records how the build resolved them.
 
+## 2026-11-08 — 0.4.0: M4 (the AI pass)
+
+**D71. Model and provider.** The spec leaves the model to Ross. The lab uses Anthropic's Claude through the
+official SDK: Claude Haiku 5.5 ($0.10 / $0.50 per million tokens) first, Claude Sonnet 5.5 ($2 / $10) only
+for a batch where Haiku is unsure on more than 25%. Both are settings; a model without a known price is
+refused, because the cap could not be enforced. The main app's import review uses `openai/gpt-5.4` through
+OpenRouter (brief 5.1); the lab reuses its instruction (category prefixes, dates, "keep separate when
+unsure"), not its provider. What would change it: Ross naming another model.
+
+**D72. What an AI answer can do.** AI is not identity evidence (IMP-FN-016-R19). "Same song as X" merges
+only when both have the same canonical identity (the merge rule); otherwise it becomes the song's first
+suggestion and, when the model is sure, the song moves from unclear to "check" (`decidedBy: 'ai'`). A sure
+"own song" also moves it to "check". "Not sure" changes nothing. No AI answer makes a song sure, and songs
+the producer marked are never asked about (they are not unclear).
+
+**D73. Payload.** Spec step 7's list, per unclear song: opaque id (a hash of the proposal id, stable so the
+cache works), names, types, extensions, sizes (KB), dates (day only), lengths, folder depth, sibling file
+names (up to 12; C4 is Ross's call, sibling names carry no path), clue texts and up to 8 candidates. Every
+string loses path separators, double quotes and control characters, so even the JSON escapes carry no
+backslash. Answers outside the question (unknown song, unknown decision, a candidate not offered) are
+dropped (IMP-FN-016-R14).
+
+**D74. The cap.** Before each call the worst case (input at the highest input price, every allowed output
+token) is added to what has been spent; if that passes the cap, the call is not made and the rest stays
+unclear. The meter uses the usage the service reports. Default cap $0.50 per scan (the spec's target per
+10,000 files); allowed $0–$20.
+
+**D75. The key.** Main process only. Order: `ANTHROPIC_API_KEY` in the environment, the repository's
+untracked `.env` (development builds only), a `.env` in the data folder, then a key saved in the app,
+encrypted with Electron's `safeStorage` (the macOS keychain) as `ai-key.bin` in the data folder. The
+renderer learns only whether a key is set and where from. The key goes to the scan worker, never into the
+request, the results, the logs or the cache. The Cloudflare Worker for outside testers is still to come.
+
+**D76. Short checks.** "Check songs…" offers 10, 20 or 50 with the same strata and weights; the confidence
+in Metrics adds up across checks, so several short checks reach the aim of 100 as one deep one does.
+
+**D77. Undoing a mark.** Lab → Rules → Your corrections lists every mark but "Right" from every catalog,
+with Undo. A mark made by mistake becomes a rule on the next scan (D69); Undo removes it from the labels,
+from the rules and from the check counts.
+
 ## 2026-11-08 — 0.3.0: M3 (rules, marking, metrics, adversarial tests)
 
 **D62. Reading time.** Ableton sets are unzipped, decoded and searched in full: about 0.1–0.15 s per

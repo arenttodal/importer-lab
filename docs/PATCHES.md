@@ -40,6 +40,14 @@ recorded removals become version labels, generic and day-named titles keep their
 bare numbers join a song only with the plain title or within one folder.
 **Status:** draft; the lab's policy file and tests are the reference.
 
+## P5 — Log the cost of every AI call (FINDINGS row 11)
+
+`POST /api/import/ai-review` (IMP-FN-016) keeps only an estimate (R16). Proposal: after each OpenRouter call,
+write one record per call (user id, model, prompt and completion tokens from the response's `usage`, cost,
+duration) and refuse a call once a per-user monthly cap would be passed. The lab's meter
+(`packages/import-engine/src/ai/pricing.js`, `pass.js`) shows the shape: price from reported usage, worst
+case checked before the call.
+
 ## Already scheduled by the spec (not lab patches)
 
 - Generic titles ("Untitled N", "New Project N", "Track N") merge into one song — port `GENERIC_TITLES`

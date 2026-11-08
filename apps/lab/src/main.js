@@ -2,9 +2,10 @@
 
 // Importer Lab — Electron main process. Read-only: the file-system guard is installed before
 // anything else, the renderer never sees an absolute path, and the window cannot reach the network.
+// The only network call is the optional AI pass, made by the scan worker (M4).
 // Runs with no environment variables; IMPORTER_LAB_DATA only overrides the data folder for tests.
 
-const { app, BrowserWindow, ipcMain, dialog, protocol, net, session, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, protocol, net, session, shell, Menu, safeStorage } = require('electron');
 const path = require('node:path');
 
 const DATA_DIR = process.env.IMPORTER_LAB_DATA ? path.resolve(process.env.IMPORTER_LAB_DATA) : path.join(app.getPath('userData'), 'lab-data');
@@ -24,7 +25,8 @@ const rulesStore = require('./rules');
 const history = require('./history');
 const { buildResults, writeResults } = require('./export');
 const { loadExistingSongs } = require('./existing-songs');
-const { PINNED_COMMIT, ENGINE_VERSION } = require('../../../packages/import-engine/src');
+const { PINNED_COMMIT, ENGINE_VERSION, AI_MODELS } = require('../../../packages/import-engine/src');
+const aiKey = require('./ai-key');
 
 const RENDERER_DIR = path.join(__dirname, '..', 'renderer');
 const APP_PUBLIC_DIR = path.join(__dirname, '..', '..', '..', 'vendor', 'the-library', 'public');
@@ -102,11 +104,17 @@ function appInfo() {
     };
 }
 
+// The repository's .env is read only in development; a packaged app never looks outside its data folder.
+function findAiKey() {
+    return aiKey.findKey({ dataDir: DATA_DIR, devRoot: app.isPackaged ? null : path.join(__dirname, '..', '..', '..'), safeStorage });
+}
+
 function publicSettings() {
     const snapshot = settings.existingSongsSnapshot;
     return {
         showLabTools: settings.showLabTools,
         scanOptions: settings.scanOptions,
+        ai: { ...settings.ai, models: AI_MODELS, key: aiKey.keyStatus(findAiKey()) },
         existingSongs: snapshot ? { count: snapshot.count, loadedAt: snapshot.loadedAt } : null
     };
 }
@@ -160,7 +168,9 @@ async function startScanning({ fromScratch = false } = {}) {
         options: {
             followSymlinks: false,
             includeCloudPlaceholders: settings.scanOptions.includeCloudPlaceholders === 'skip' ? 'skip' : 'list',
-            ai: { enabled: false, maxCostUsd: 0, model: '' },
+            ai: settings.ai.enabled
+                ? { enabled: true, maxCostUsd: settings.ai.maxCostUsd, model: settings.ai.model, ...(settings.ai.largeModel ? { largeModel: settings.ai.largeModel } : {}) }
+                : { enabled: false, maxCostUsd: 0, model: '' },
             mergeRule: settings.scanOptions.mergeRule === 'multi-clue' ? 'multi-clue' : 'exact-identity-only',
             identityPolicyVersion: `app-${PINNED_COMMIT.slice(0, 8)}`,
             groupEdits: settings.scanOptions.groupEdits !== false,
@@ -169,12 +179,15 @@ async function startScanning({ fromScratch = false } = {}) {
         existingSongs: existingSongsForScan()
     };
     request.options.userRules = userRulesForScan();
+    const key = settings.ai.enabled ? findAiKey().key : null;
+    if (settings.ai.enabled && !key) throw new Error('The AI pass is on but there is no AI key. Add one in Lab → Options, or switch AI off.');
     const catalogId = labels.catalogId(request.roots);
     const scan = startScan({
         request,
         dataDir: DATA_DIR,
         excludePaths: [DATA_DIR, app.getPath('userData')],
         fromScratch,
+        aiKey: key,
         onProgress: (progress) => send('lab:scan-progress', progress)
     });
     currentScan = scan;
@@ -210,8 +223,25 @@ function registerIpc() {
             updateSettings({ scanOptions: { ...settings.scanOptions, courseNamespaces: String(value).split(',').map((item) => item.trim().toLowerCase()).filter(Boolean).slice(0, 50) } });
         else if (key === 'declinedCoursePrefixes')
             updateSettings({ scanOptions: { ...settings.scanOptions, declinedCoursePrefixes: (Array.isArray(value) ? value : []).map((item) => String(item).trim().toLowerCase()).filter(Boolean).slice(0, 100) } });
+        else if (key === 'aiEnabled') updateSettings({ ai: { ...settings.ai, enabled: value === true } });
+        else if (key === 'aiMaxCostUsd') {
+            const cap = Number(value);
+            if (!(Number.isFinite(cap) && cap >= 0 && cap <= 20)) throw new Error('The cost cap is between $0 and $20 per run');
+            updateSettings({ ai: { ...settings.ai, maxCostUsd: Math.round(cap * 100) / 100 } });
+        } else if (key === 'aiModel' && AI_MODELS.includes(value)) updateSettings({ ai: { ...settings.ai, model: value } });
+        else if (key === 'aiLargeModel' && (value === '' || AI_MODELS.includes(value))) updateSettings({ ai: { ...settings.ai, largeModel: value } });
         else throw new Error(`Unknown setting: ${key}`);
         buildMenu();
+        return publicSettings();
+    });
+
+    // The AI key: saved encrypted in the data folder; the renderer only learns whether one is set.
+    ipcMain.handle('lab:save-ai-key', (_event, key) => {
+        aiKey.saveKey(DATA_DIR, key, safeStorage);
+        return publicSettings();
+    });
+    ipcMain.handle('lab:remove-ai-key', () => {
+        aiKey.removeKey(DATA_DIR);
         return publicSettings();
     });
 
@@ -287,11 +317,19 @@ function registerIpc() {
     });
 
     // "Check songs": a weighted sample of songs not checked yet, and the confidence so far.
-    ipcMain.handle('lab:check-sample', () => {
+    ipcMain.handle('lab:check-sample', (_event, size) => {
         if (!last) throw new Error('Scan first');
         const checked = new Set(labels.loadLabels(DATA_DIR, last.catalogId).marks.filter((mark) => mark.check).map((mark) => mark.songName));
         const exclude = last.view.songs.filter((song) => checked.has(song.name)).map((song) => song.key);
-        return check.drawSample(last.view.songs, { exclude });
+        return check.drawSample(last.view.songs, { exclude, size: check.CHECK_SIZES.includes(size) ? size : check.SESSION_SIZE });
+    });
+
+    // "Your corrections": marks from every catalog that change the result, each with Undo.
+    ipcMain.handle('lab:list-corrections', () => labels.listCorrections(DATA_DIR));
+    ipcMain.handle('lab:remove-correction', (_event, catalogId, markId) => {
+        if (!/^[0-9a-z-]{1,64}$/i.test(String(catalogId))) throw new Error('Unknown catalog');
+        labels.removeMark(DATA_DIR, String(catalogId), String(markId));
+        return true;
     });
     ipcMain.handle('lab:check-summary', () => (last ? check.summarize(labels.loadLabels(DATA_DIR, last.catalogId).marks) : check.summarize([])));
 
@@ -383,7 +421,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-    // No network: the lab makes no calls until the optional AI pass (M4).
+    // The window never reaches the network. The optional AI pass runs in the scan worker (Node), not here.
     session.defaultSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (_details, callback) => {
         blockedRequests += 1;
         callback({ cancel: true });

@@ -94,13 +94,17 @@ async function main() {
         await page.click('#navBack');
     }
     await page.click('#checkStart');
+    await page.waitForSelector('.std-modal');
     await settle(page);
-    await snap('check-30-songs');
+    await snap('check-choose-size');
+    await page.click('.std-modal .std-modal-btn--primary');
+    await settle(page);
+    await snap('check-10-songs');
     for (const answer of ['right', 'skip', 'wrong-song']) {
         await page.click(`#checkBar [data-check="${answer}"]`);
         await settle(page, 250);
     }
-    await snap('check-30-songs-later');
+    await snap('check-10-songs-later');
     await page.click('#navBack');
     await settle(page);
     await page.click('#exportResults');
@@ -119,6 +123,25 @@ async function main() {
         await page.click(`[data-lab="${section}"]`);
         await settle(page);
         await snap(`lab-${section}`);
+        if (section === 'options') {
+            await page.locator('#aiEnabled').scrollIntoViewIfNeeded();
+            await settle(page);
+            await snap('lab-options-ai');
+            await page.click('#aiAddKey');
+            await page.waitForSelector('.std-modal input[type="password"]');
+            await settle(page);
+            await snap('lab-options-ai-key');
+            await page.keyboard.press('Escape');
+            await settle(page);
+        }
+        if (section === 'rules') {
+            const before = await page.locator('#rulesCorrections [data-undo-correction]').count();
+            await page.locator('#rulesCorrections [data-undo-correction]').first().click();
+            await settle(page, 600);
+            const after = await page.locator('#rulesCorrections [data-undo-correction]').count();
+            console.log(JSON.stringify({ correctionsBeforeUndo: before, correctionsAfterUndo: after }));
+            await snap('lab-rules-after-undo');
+        }
     }
 
 

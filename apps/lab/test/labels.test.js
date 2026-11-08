@@ -51,3 +51,16 @@ test('"Check 30 songs" answers are saved as marks flagged as part of the check, 
     const saved = labels.loadLabels(data, 'cat1').marks;
     assert.deepEqual(saved.map((mark) => [mark.kind, mark.check, mark.songBand]), [['right', true, 'sure'], ['split', false, null]]);
 });
+
+test('your corrections: every mark except "right", from every catalog, newest first, and each can be undone', (t) => {
+    const data = setup(t);
+    labels.addMark(data, 'cat1', { kind: 'right', target: 'song', songName: 'Sky', check: true }, CONTEXT);
+    const split = labels.addMark(data, 'cat1', { kind: 'split', target: 'song', songName: 'Series - Day 1 - Sky', check: true }, CONTEXT);
+    const rename = labels.addMark(data, 'cat2', { kind: 'rename', target: 'song', songName: 'Rain', newName: 'Rain Song' }, CONTEXT);
+    const list = labels.listCorrections(data);
+    assert.deepEqual(list.map((mark) => mark.id).sort(), [split.id, rename.id].sort());
+    assert.equal(list.find((mark) => mark.id === split.id).catalogId, 'cat1');
+    assert.ok(!JSON.stringify(list).includes(data), 'no paths');
+    labels.removeMark(data, 'cat1', split.id);
+    assert.deepEqual(labels.listCorrections(data).map((mark) => mark.id), [rename.id]);
+});

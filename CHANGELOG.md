@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.4.0 — 2026-11-08 (M4: the AI pass)
+
+- **AI on unclear songs only**, off by default (Lab → Scan options). Sent per song: an opaque id, file
+  names, types, extensions, sizes, dates, lengths, folder depth, the names of files beside it, the
+  engine's clue texts and up to 8 candidate songs (by clue, rare shared word or folder). Never a path,
+  audio or account data; every string has path separators and double quotes removed. A test fails if a
+  path separator, a part of an absolute path or a long blob reaches the request.
+- **Batches** stay under 100,000 tokens (30,000 targeted); songs that are candidates of each other
+  (shared samples, timing, same words) stay in one batch.
+- **Models from settings**: Claude Haiku 5.5 first; Claude Sonnet 5.5 re-answers a batch when Haiku is
+  unsure on more than 25% of it. Official Anthropic SDK (`@anthropic-ai/sdk` 1.6.0), structured output.
+- **Cost meter and hard cap**: every call is priced from the usage the service reports; a call that could
+  pass the cap (worst case: every output token) is not made. The scan screen shows the cost so far;
+  Metrics, Logs and the results file record every call (model, tokens, cost, time). No key in any of them.
+- **Cached answers** per song in the data folder: scanning again costs nothing.
+- **The gate**: "same song" merges only when it passes the merge rule (equal identity); otherwise it is the
+  song's first suggestion, marked "AI suggestion" for review. An AI answer never makes a song sure.
+- **Key**: `ANTHROPIC_API_KEY` in an untracked `.env` (development), or **Add key…** in the app (encrypted by
+  the macOS keychain in the data folder). Never inside the app.
+- Estimated on the producer's 2025 catalog (1,271 files, replay): 25 unclear songs, one batch, about
+  $0.004 with Haiku (at most $0.007; $0.13 if every batch went to Sonnet).
+- **Check songs…**: a short (10), standard (20) or deep (50) check, same weighting.
+- **Your corrections** (Lab → Rules): every mark that changes the result, from every catalog, with Undo.
+
+Contract 1.4.0 (optional `ai.largeModel`), engine 0.4.0-m4. Grouping without AI is unchanged.
+
 ## 0.3.0 — 2026-11-08 (M3: rules, marking, metrics, adversarial tests)
 
 Measured by replaying the producer's two results files (2024 and 2025 catalogs) with folders, dates and

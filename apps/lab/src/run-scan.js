@@ -7,8 +7,9 @@ const { Worker } = require('node:worker_threads');
 
 // fromScratch: ignore stored results from earlier scans (every file is read again); the new results
 // are still stored for the next scan.
-function startScan({ request, dataDir, excludePaths = [], fromScratch = false, onProgress = () => {} }) {
-    const worker = new Worker(path.join(__dirname, 'scan-worker.js'), { workerData: { request, dataDir, excludePaths, fromScratch } });
+// aiKey: only when the AI pass is on; it goes to the worker, never into the request or the results.
+function startScan({ request, dataDir, excludePaths = [], fromScratch = false, aiKey = null, onProgress = () => {} }) {
+    const worker = new Worker(path.join(__dirname, 'scan-worker.js'), { workerData: { request, dataDir, excludePaths, fromScratch, aiKey } });
     const promise = new Promise((resolve, reject) => {
         let settled = false;
         worker.on('message', (message) => {

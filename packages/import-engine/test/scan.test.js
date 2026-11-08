@@ -10,10 +10,11 @@ function allFiles(catalog) {
 }
 const { makeCatalog, scanRequest } = require('./helpers');
 
-test('request validation: AI off in M1, symlinks never followed, placeholders skip or list', async () => {
+test('request validation: AI needs a priced model and a key, symlinks never followed, placeholders skip or list', async () => {
     await assert.rejects(scanCatalog(scanRequest([])), /at least one folder/);
     await assert.rejects(scanCatalog(scanRequest(['/tmp'], { followSymlinks: true })), /followSymlinks/);
-    await assert.rejects(scanCatalog(scanRequest(['/tmp'], { ai: { enabled: true, maxCostUsd: 1, model: 'x' } })), /M4/);
+    await assert.rejects(scanCatalog(scanRequest(['/tmp'], { ai: { enabled: true, maxCostUsd: 1, model: 'x' } })), /No price is known/);
+    await assert.rejects(scanCatalog(scanRequest(['/tmp'], { ai: { enabled: true, maxCostUsd: 1, model: 'claude-haiku-5-5' } })), /no AI key/);
     await assert.rejects(scanCatalog(scanRequest(['/tmp'], { includeCloudPlaceholders: 'download' })), /includeCloudPlaceholders/);
 });
 
@@ -31,10 +32,10 @@ test('every ground-truth file of the synthetic catalog is in the catalog and in 
     }
 });
 
-test('catalog follows contract 1.3.0 and the baseline runs in both modes', async (t) => {
+test('catalog follows contract 1.4.0 and the baseline runs in both modes', async (t) => {
     const { root } = makeCatalog(t);
     const result = await scanCatalog(scanRequest([root]));
-    assert.equal(result.catalog.contractVersion, '1.3.0');
+    assert.equal(result.catalog.contractVersion, '1.4.0');
     assert.equal(result.catalog.stats.files, allFiles(result.catalog).length);
     assert.ok(result.catalog.baselineStripPrefixes.groups.length > 0);
     assert.equal(result.catalog.stats.cappedAt, null);
@@ -144,4 +145,28 @@ test('every step is timed; a re-scan opens no unchanged file for clues', async (
     const stored = new Map(first.records.map(({ item, derived }) => [item.path, { size: item.size, mtimeMs: item.mtimeMs, derived }]));
     const second = await scanCatalog(scanRequest([root]), { previous: (item) => stored.get(item.path) || null });
     assert.equal(second.notes.clueCounts.filesOpened, 0);
+});
+
+test('AI on: the scan asks about unclear songs only, reports the cost, and never sends a path', async (t) => {
+    const { root } = makeCatalog(t);
+    const off = await scanCatalog(scanRequest([root]));
+    const unclear = off.catalog.songs.filter((song) => song.kind === 'song' && song.band === 'unclear').length;
+    const requests = [];
+    const client = {
+        async ask(request) {
+            requests.push(request);
+            const items = JSON.parse(request.user.slice(request.user.indexOf('{'))).items;
+            return { text: JSON.stringify({ answers: items.map((item) => ({ item: item.id, decision: 'not-sure', candidate: '', sure: false, reason: 'Cannot tell.' })) }), usage: { input_tokens: 3000, output_tokens: 400 }, stopReason: 'end_turn' };
+        }
+    };
+    const meter = [];
+    const on = await scanCatalog(scanRequest([root], { ai: { enabled: true, maxCostUsd: 0.5, model: 'claude-haiku-5-5' } }), { ai: { client, cache: new Map() }, onProgress: (progress) => progress.phase === 'ai' && meter.push(progress.aiCostUsd) });
+    assert.equal(on.notes.ai.asked, unclear);
+    assert.ok(unclear > 0, 'the fixture has unclear songs');
+    assert.ok(on.catalog.stats.aiCostUsd > 0 && on.catalog.stats.aiCostUsd <= 0.5);
+    assert.ok(meter.length >= 2, 'a live meter');
+    for (const request of requests) {
+        assert.ok(!request.user.includes(root) && !/[\\/]/.test(request.user));
+    }
+    assert.equal(on.catalog.songs.length, off.catalog.songs.length, '"not sure" changes nothing');
 });
