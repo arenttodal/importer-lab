@@ -8,6 +8,7 @@
 //   split        → apart (back to the app's exact names)
 //   wrong-song   → remove (the file leaves that song)
 //   rename       → names (the song is shown under the new name)
+//   not-song     → a stem of …: together + stems; a sample or something else: notSongs
 //
 // Answers to the AI's questions: "same song" is saved as a merge mark; "different songs" as a notSame
 // pair; "what is …?" as a prefix answer. Every answered or skipped question id is kept, so it is not
@@ -27,9 +28,9 @@ function rulesPath(dataDir) {
 function loadRules(dataDir) {
     try {
         const saved = JSON.parse(fs.readFileSync(rulesPath(dataDir), 'utf8'));
-        return { format: 'importer-lab-rules', version: 1, prefixes: saved.prefixes || {}, useMarks: saved.useMarks !== false, notSame: saved.notSame || [], skippedQuestions: saved.skippedQuestions || [] };
+        return { format: 'importer-lab-rules', version: 1, prefixes: saved.prefixes || {}, useMarks: saved.useMarks !== false, notSame: saved.notSame || [], skippedQuestions: saved.skippedQuestions || [], samples: saved.samples || [] };
     } catch {
-        return { format: 'importer-lab-rules', version: 1, prefixes: {}, useMarks: true, notSame: [], skippedQuestions: [] };
+        return { format: 'importer-lab-rules', version: 1, prefixes: {}, useMarks: true, notSame: [], skippedQuestions: [], samples: [] };
     }
 }
 
@@ -70,6 +71,16 @@ function answerAiQuestion(dataDir, question, answer) {
     return rules;
 }
 
+// "Are these samples?": the files the producer ticked are samples; the question is not asked again.
+function answerSampleQuestion(dataDir, question, ticked) {
+    const rules = loadRules(dataDir);
+    const files = (Array.isArray(ticked) ? ticked : []).map(String).filter((name) => question.files.includes(name));
+    if (files.length) rules.samples.push(files);
+    if (!rules.skippedQuestions.includes(question.id)) rules.skippedQuestions.push(String(question.id).slice(0, 40));
+    saveRules(dataDir, rules);
+    return rules;
+}
+
 // Ask the skipped and answered AI questions again (answers already saved stay).
 function forgetAiQuestions(dataDir) {
     const rules = loadRules(dataDir);
@@ -84,11 +95,25 @@ function rulesFromMarks(marks, filesOf = () => null) {
     const apart = [];
     const remove = [];
     const names = [];
+    const stems = [];
+    const notSongs = [];
     const filesFor = (mark, songName) => (songName === mark.songName && mark.fileNames && mark.fileNames.length ? mark.fileNames : filesOf(mark.scanId, songName)) || [];
     for (const mark of marks) {
         if (mark.target === 'file' && mark.kind === 'wrong-song') {
             const from = filesFor(mark, mark.songName).filter((name) => name !== mark.fileName);
             if (mark.fileName && from.length) remove.push({ file: mark.fileName, from });
+            continue;
+        }
+        if (mark.kind === 'not-song') {
+            const files = mark.target === 'file' ? [mark.fileName].filter(Boolean) : filesFor(mark, mark.songName);
+            if (!files.length) continue;
+            if (mark.notSongReason === 'stem') {
+                const song = mark.stemOfFileNames && mark.stemOfFileNames.length ? mark.stemOfFileNames : filesOf(mark.scanId, mark.stemOfSongName) || [];
+                if (song.length) {
+                    together.push([...new Set([...files, ...song])]);
+                    stems.push(...files);
+                }
+            } else if (mark.notSongReason === 'sample' || mark.notSongReason === 'other') notSongs.push({ files, reason: mark.notSongReason });
             continue;
         }
         const own = filesFor(mark, mark.songName);
@@ -100,13 +125,15 @@ function rulesFromMarks(marks, filesOf = () => null) {
             if (own.length && other.length) together.push([...new Set([...own, ...other])]);
         }
     }
-    return { together, apart, remove, names };
+    return { together, apart, remove, names, stems, notSongs };
 }
 
 // What the engine gets: prefix answers plus, when switched on, the rules from every mark.
 function buildUserRules(dataDir, marks, filesOf) {
     const saved = loadRules(dataDir);
-    return { prefixes: saved.prefixes, notSame: saved.notSame, skippedQuestions: saved.skippedQuestions, ...(saved.useMarks ? rulesFromMarks(marks, filesOf) : { together: [], apart: [], remove: [], names: [] }) };
+    const fromMarks = saved.useMarks ? rulesFromMarks(marks, filesOf) : { together: [], apart: [], remove: [], names: [], stems: [], notSongs: [] };
+    // Answers to "Are these samples?" are kept in rules.json, apart from the marks.
+    return { prefixes: saved.prefixes, notSame: saved.notSame, skippedQuestions: saved.skippedQuestions, ...fromMarks, notSongs: [...fromMarks.notSongs, ...saved.samples.map((files) => ({ files, reason: 'sample' }))] };
 }
 
-module.exports = { loadRules, saveRules, answerPrefixes, setUseMarks, rulesFromMarks, buildUserRules, answerAiQuestion, forgetAiQuestions, ROLES };
+module.exports = { loadRules, saveRules, answerPrefixes, setUseMarks, rulesFromMarks, buildUserRules, answerAiQuestion, answerSampleQuestion, forgetAiQuestions, ROLES };

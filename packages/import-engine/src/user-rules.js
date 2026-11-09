@@ -13,13 +13,17 @@
 //   apart:    [[fileName, …]]     these files were wrongly put together ("Should be split")
 //   remove:   [{ file, from: [fileName, …] }]  this file is not in that song ("In the wrong song")
 //   names:    [{ files: [fileName, …], name }]  rename a song
+//   stems:    [fileName, …]          these files are stems ("Not a song: a stem of …", with a together rule)
+//   notSongs: [{ files: [fileName, …], reason: 'sample' | 'other' }]  not songs ("Not a song"): a sample
+//             joins the sample pack in its folder; anything else is listed under "Not songs"
+//   skippedQuestions: [id, …]        questions answered or skipped, not asked again
 //
 // Rules hold file names only: no paths, no contents.
 
 const ROLES = ['band', 'series', 'course', 'pack', 'collaborator', 'word'];
 
 function emptyRules() {
-    return { prefixes: {}, together: [], apart: [], remove: [], names: [] };
+    return { prefixes: {}, together: [], apart: [], remove: [], names: [], stems: [], notSongs: [], skippedQuestions: [] };
 }
 
 function normalize(input) {
@@ -31,6 +35,9 @@ function normalize(input) {
     clean.apart = (rules.apart || []).map(names).filter((list) => list.length >= 2);
     clean.remove = (rules.remove || []).filter((rule) => rule && rule.file).map((rule) => ({ file: String(rule.file), from: names(rule.from) }));
     clean.names = (rules.names || []).filter((rule) => rule && rule.name).map((rule) => ({ files: names(rule.files), name: String(rule.name).slice(0, 200) }));
+    clean.stems = names(rules.stems);
+    clean.notSongs = (rules.notSongs || []).filter((rule) => rule && ['sample', 'other'].includes(rule.reason)).map((rule) => ({ files: names(rule.files), reason: rule.reason })).filter((rule) => rule.files.length);
+    clean.skippedQuestions = names(rules.skippedQuestions);
     return clean;
 }
 

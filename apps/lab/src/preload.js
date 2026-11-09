@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('labAPI', {
     removeAiKey: () => ipcRenderer.invoke('lab:remove-ai-key'),
     answerAiQuestions: (answers) => ipcRenderer.invoke('lab:answer-ai-questions', answers),
     forgetAiQuestions: () => ipcRenderer.invoke('lab:forget-ai-questions'),
+    answerSampleQuestions: (answers) => ipcRenderer.invoke('lab:answer-sample-questions', answers),
     loadExistingSongs: () => ipcRenderer.invoke('lab:load-existing-songs'),
     clearExistingSongs: () => ipcRenderer.invoke('lab:clear-existing-songs'),
 

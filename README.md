@@ -44,7 +44,10 @@ and answers (M3), and can ask AI about the songs it cannot place, with a cost ca
    after a scan ("What is Quill? A band, a series, a course, a sample pack, a collaborator, or just a
    word?"); answers and marks (including **Rename**) become rules applied first on the next scan, listed
    under Lab → **Rules**. **Your corrections** there lists every mark that changes the result, with
-   **Undo** for one made by mistake.
+   **Undo** for one made by mistake. **Not a song…** (in a check, or under "This is wrong") marks a stem
+   of another song, a sample, or something else; such files are listed under **Not songs** or in a
+   sample pack, never counted as songs, with **It's a song** to put one back. When a small folder holds
+   files that look like samples, the app asks once and you tick the samples.
 7. **Send results to the team** saves one file (names, counts, marks and timings — no paths, no audio)
    and shows it in Finder, ready to attach to a message.
 

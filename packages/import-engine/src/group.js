@@ -326,11 +326,12 @@ function groupCatalog(files, options = {}) {
 
     attachExportBatches(groups, links);
     const looseStems = settleLoneStems(groups);
-    applyUserFileRules(groups, rules);
+    const notSongs = applyUserFileRules(groups, rules);
     consolidatePacks(groups);
     const songs = groups.map((group) => buildSong(group, { mergeRule, links, rules }));
     // The live song list while scanning needs names only.
-    if (options.preview) return { songs, looseStems, context: { namespaces, contributors, courseSuggestions: [] } };
+    if (options.preview) return { songs, looseStems, notSongs, context: { namespaces, contributors, courseSuggestions: [] } };
+    const sampleQuestions = suggestSampleQuestions(groups, songs, new Set(rules.skippedQuestions));
     makeNamesUnique(songs);
     proposeSimilarNames(songs);
     linkCourseTwins(songs, groups);
@@ -338,7 +339,48 @@ function groupCatalog(files, options = {}) {
     matchExistingSongs(songs, existingSongs);
     const courseSuggestions = detectCoursePrefixes(files, { contributors, known: courseNamespaces, declined: declinedCoursePrefixes });
     const questions = suggestQuestions(files, { namespaces, courseSuggestions, songs, answered: [...Object.keys(rules.prefixes), ...courseNamespaces, ...declinedCoursePrefixes] });
-    return { songs, looseStems, context: { namespaces, contributors, courseSuggestions, questions, policyVersion: namePolicy.version, scoringVersion: scoring.version } };
+    return { songs, looseStems, notSongs, context: { namespaces, contributors, courseSuggestions, questions, sampleQuestions, policyVersion: namePolicy.version, scoringVersion: scoring.version } };
+}
+
+// ── "Are these samples?" (dev.13) ──
+// Asked once per folder, never decided: songs of one or two audio files with no project, in a small
+// folder that also holds a sample pack ("beside the pack"), or in a folder where most such songs look
+// like samples (one-shot or numbered names, or under 8 seconds). The producer ticks the ones that are
+// samples. Big mixed folders are never asked about.
+const SAMPLE_QUESTION_MAX = 4;
+const SAMPLE_QUESTION_MAX_FILES = 8;
+const SHORT_SAMPLE_MS = 8000;
+
+function suggestSampleQuestions(groups, songs, skipped) {
+    const byFolder = new Map();
+    groups.forEach((group, index) => {
+        const song = songs[index];
+        const members = [...group.entries, ...group.stems];
+        const folder = members[0] && members[0].file.sourceContainerId;
+        if (!folder) return;
+        if (!byFolder.has(folder)) byFolder.set(folder, { packs: [], candidates: [], songs: 0 });
+        const stats = byFolder.get(folder);
+        if (song.kind === 'sample-pack') stats.packs.push(song);
+        if (song.kind !== 'song') return;
+        stats.songs += 1;
+        const plain = members.length <= 2 && members.every((entry) => entry.file.type !== 'projects' && AUDIO_EXTS.has(entry.file.ext));
+        if (!plain) return;
+        const looksLikeSample = members.some((entry) => isOneShotName(entry) || isNumberedSample(entry) || (entry.file.durationMs && entry.file.durationMs < SHORT_SAMPLE_MS));
+        stats.candidates.push({ song, looksLikeSample, names: members.map((entry) => entry.file.name) });
+    });
+    const questions = [];
+    for (const [folder, stats] of byFolder) {
+        if (!stats.candidates.length || stats.songs > SAMPLE_QUESTION_MAX_FILES) continue;
+        const besidePack = stats.packs.length > 0;
+        const mostlySamples = stats.candidates.filter((candidate) => candidate.looksLikeSample).length * 2 > stats.songs && stats.songs >= 3;
+        if (!besidePack && !mostlySamples) continue;
+        const files = stats.candidates.flatMap((candidate) => candidate.names).sort();
+        const id = 'f' + crypto.createHash('sha256').update(files.join('\u0000')).digest('hex').slice(0, 12);
+        if (skipped.has(id)) continue;
+        questions.push({ id, folderKey: folder, pack: besidePack ? stats.packs[0].displayName || stats.packs[0].songName : null, files, songs: stats.candidates.map((candidate) => candidate.song.songName) });
+        if (questions.length >= SAMPLE_QUESTION_MAX) break;
+    }
+    return questions;
 }
 
 // Export batches found by the clue readers (same folder, format and length, saved together): the
@@ -640,16 +682,52 @@ function applyUserFileRules(groups, rules) {
         const holding = groups.filter((group) => members(group).some((entry) => wanted.has(entry.file.name)));
         if (holding.length < 1) continue;
         const target = holding.find((group) => group.entries.length) || holding[0];
+        const asStem = (entry) => rules.stems.includes(entry.file.name);
+        const stemmed = (entry) => ({ ...entry, analysis: { ...entry.analysis, isStemName: true, stemPart: entry.analysis.stemPart || 'stem' } });
         for (const group of holding) {
             if (group === target) continue;
-            target.entries.push(...group.entries);
-            target.stems.push(...group.stems);
+            target.entries.push(...group.entries.filter((entry) => !asStem(entry)));
+            target.stems.push(...group.stems, ...group.entries.filter(asStem).map(stemmed));
             if (group.stemOnly && !target.stemOnly) target.stemOnly = false;
             groups.splice(groups.indexOf(group), 1);
         }
         if (target.stemOnly && target.entries.length) target.stemOnly = false;
         target.userJoined = true;
     }
+    return applyNotSongs(groups, rules);
+}
+
+// "Not a song": a sample joins the sample pack already in its folder, or a pack of the marked samples
+// in that folder; anything else leaves the songs for the "Not songs" list. Nothing is dropped.
+function applyNotSongs(groups, rules) {
+    const notSongs = [];
+    const members = (group) => [...group.entries, ...group.stems];
+    for (const rule of rules.notSongs) {
+        const wanted = new Set(rule.files);
+        for (const group of [...groups]) {
+            const leaving = members(group).filter((entry) => wanted.has(entry.file.name));
+            if (!leaving.length || group.userNotSongPack) continue;
+            group.entries = group.entries.filter((entry) => !leaving.includes(entry));
+            group.stems = group.stems.filter((entry) => !leaving.includes(entry));
+            if (!group.entries.length && !group.stems.length) groups.splice(groups.indexOf(group), 1);
+            for (const entry of leaving) {
+                if (rule.reason === 'other') {
+                    notSongs.push({ ...entry.file, reason: 'You marked this as not a song.' });
+                    continue;
+                }
+                const folder = entry.file.sourceContainerId;
+                const pack =
+                    groups.find((candidate) => candidate.userNotSongPack === `samples:${folder}`) ||
+                    groups.find((candidate) => kindOf(candidate) === 'sample-pack' && folder && members(candidate).some((member) => member.file.sourceContainerId === folder));
+                if (pack) {
+                    pack.entries.push(entry);
+                    pack.forcedKind = 'sample-pack';
+                }
+                else groups.push({ key: `user-samples:${folder}`, entries: [entry], stems: [], namespaceConflict: false, forcedKind: 'sample-pack', userNotSongPack: `samples:${folder}` });
+            }
+        }
+    }
+    return notSongs;
 }
 
 // ── Display names (IMP-FN-007-R14) ──

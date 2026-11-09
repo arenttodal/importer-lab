@@ -41,7 +41,7 @@ test('rules from marks can be switched off; prefix answers stay', (t) => {
     rules.answerPrefixes(data, { quill: 'band' });
     rules.setUseMarks(data, false);
     const built = rules.buildUserRules(data, [{ kind: 'right', target: 'song', songName: 'A', fileNames: ['a.wav', 'b.wav'] }]);
-    assert.deepEqual(built, { prefixes: { quill: 'band' }, notSame: [], skippedQuestions: [], together: [], apart: [], remove: [], names: [] });
+    assert.deepEqual(built, { prefixes: { quill: 'band' }, notSame: [], skippedQuestions: [], together: [], apart: [], remove: [], names: [], stems: [], notSongs: [] });
 });
 
 test('answers to the AI\'s questions: "different songs" and "what is" become rules; every answered or skipped id is kept', (t) => {
@@ -59,4 +59,21 @@ test('answers to the AI\'s questions: "different songs" and "what is" become rul
     rules.forgetAiQuestions(data);
     assert.deepEqual(rules.buildUserRules(data, []).skippedQuestions, []);
     assert.equal(rules.buildUserRules(data, []).notSame.length, 1, 'answers stay');
+});
+
+test('"Not a song" marks: a stem joins its song; a sample or anything else becomes a not-song rule; sample answers too', (t) => {
+    const data = setup(t);
+    const marks = [
+        { kind: 'not-song', notSongReason: 'stem', target: 'song', songName: 'Tide Vox', fileNames: ['Tide Vox.wav'], stemOfSongName: 'Glass Tide', stemOfFileNames: ['Glass Tide.wav', 'Glass Tide Project'] },
+        { kind: 'not-song', notSongReason: 'sample', target: 'song', songName: 'Nv - Boom', fileNames: ['Nv - Boom.wav'] },
+        { kind: 'not-song', notSongReason: 'other', target: 'file', songName: 'Memo', fileName: 'Phone Memo 3.m4a' }
+    ];
+    const built = rules.buildUserRules(data, marks);
+    assert.deepEqual(built.together, [['Tide Vox.wav', 'Glass Tide.wav', 'Glass Tide Project']]);
+    assert.deepEqual(built.stems, ['Tide Vox.wav']);
+    assert.deepEqual(built.notSongs, [{ files: ['Nv - Boom.wav'], reason: 'sample' }, { files: ['Phone Memo 3.m4a'], reason: 'other' }]);
+    rules.answerSampleQuestion(data, { id: 'f111111111111', files: ['Kit - Thud.wav', 'Kit - Night Drive.wav'] }, ['Kit - Thud.wav', 'Not offered.wav']);
+    const after = rules.buildUserRules(data, []);
+    assert.deepEqual(after.notSongs, [{ files: ['Kit - Thud.wav'], reason: 'sample' }], 'only files the question offered');
+    assert.deepEqual(after.skippedQuestions, ['f111111111111']);
 });

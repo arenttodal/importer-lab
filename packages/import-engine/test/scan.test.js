@@ -32,10 +32,10 @@ test('every ground-truth file of the synthetic catalog is in the catalog and in 
     }
 });
 
-test('catalog follows contract 1.5.0 and the baseline runs in both modes', async (t) => {
+test('catalog follows contract 1.6.0 and the baseline runs in both modes', async (t) => {
     const { root } = makeCatalog(t);
     const result = await scanCatalog(scanRequest([root]));
-    assert.equal(result.catalog.contractVersion, '1.5.0');
+    assert.equal(result.catalog.contractVersion, '1.6.0');
     assert.equal(result.catalog.stats.files, allFiles(result.catalog).length);
     assert.ok(result.catalog.baselineStripPrefixes.groups.length > 0);
     assert.equal(result.catalog.stats.cappedAt, null);

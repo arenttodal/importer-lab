@@ -18,7 +18,7 @@ const { runAiPass } = require('./ai/pass');
 const { priceOf } = require('./ai/pricing');
 const scoring = require('../policy/scoring-v1.json');
 
-const ENGINE_VERSION = '0.4.3-m4';
+const ENGINE_VERSION = '0.4.4-m4';
 const POLICY_VERSION = `${NAME_POLICY_VERSION}+${scoring.version}`;
 const PROGRESS_EVERY = 250;
 // While crawling, the engine groups the files found so far, so songs appear as they are found.
@@ -225,6 +225,7 @@ async function scanCatalog(request, hooks = {}) {
         songs: engine.songs,
         unassigned: files.filter((file) => file.type === 'unknown'),
         looseStems: engine.looseStems,
+        notSongs: engine.notSongs || [],
         duplicates: clues.duplicates,
         baseline: withoutLog(baseline),
         baselineStripPrefixes: withoutLog(baselineStripPrefixes),
@@ -258,6 +259,7 @@ async function scanCatalog(request, hooks = {}) {
             learned: engine.context,
             courseSuggestions: engine.context.courseSuggestions || [],
             questions: engine.context.questions || [],
+            sampleQuestions: engine.context.sampleQuestions || [],
             baselineLog: baseline.log,
             ai: aiStats
         },

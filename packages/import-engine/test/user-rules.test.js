@@ -78,3 +78,59 @@ test('questions: the prefixes that shape the most files, with a guess, never dat
     assert.ok(!asked.includes('marlow'), 'already answered');
     assert.ok(result.context.questions.every((question) => question.guess && question.examples.length));
 });
+
+// dev.13: "Not a song" — a stem of another song, a sample, or something else. Never hidden: listed.
+test('not a song: a sample joins the sample pack in its folder; something else goes to the Not songs list', () => {
+    const files = [
+        file('Glass Tide.wav', 'bounces', { folder: 'B' }),
+        file('Glass Tide Project', 'projects', { folder: 'P' }),
+        file('Nv - Kick 1.wav', 'bounces', { folder: 'S' }),
+        file('Nv - Kick 2.wav', 'bounces', { folder: 'S' }),
+        file('Nv - Snare 1.wav', 'bounces', { folder: 'S' }),
+        file('Nv - Clap 1.wav', 'bounces', { folder: 'S' }),
+        file('Nv - Boom - Dark Power.wav', 'bounces', { folder: 'S' }),
+        file('Phone Memo 3.m4a', 'bounces', { folder: 'B' })
+    ];
+    const before = groupCatalog(files);
+    assert.equal(songOf(before, 'Nv - Boom - Dark Power.wav').kind, 'song');
+    const result = groupCatalog(files, { userRules: { notSongs: [{ files: ['Nv - Boom - Dark Power.wav'], reason: 'sample' }, { files: ['Phone Memo 3.m4a'], reason: 'other' }] } });
+    const pack = songOf(result, 'Nv - Boom - Dark Power.wav');
+    assert.equal(pack.kind, 'sample-pack');
+    assert.ok(pack.files.some((member) => member.name === 'Nv - Kick 1.wav'), 'joins the pack already in its folder');
+    assert.ok(!songOf(result, 'Phone Memo 3.m4a'));
+    assert.deepEqual(result.notSongs.map((member) => member.name), ['Phone Memo 3.m4a']);
+    assert.ok(songOf(result, 'Glass Tide.wav').kind === 'song', 'nothing else changes');
+});
+
+test('not a song: a stem of another song joins that song as a stem', () => {
+    const files = [file('Glass Tide.wav', 'bounces', { folder: 'B' }), file('Glass Tide Project', 'projects', { folder: 'P' }), file('Tide Vox Raw.wav', 'bounces', { folder: 'B' })];
+    const result = groupCatalog(files, { userRules: { together: [['Tide Vox Raw.wav', 'Glass Tide.wav', 'Glass Tide Project']], stems: ['Tide Vox Raw.wav'] } });
+    const song = songOf(result, 'Tide Vox Raw.wav');
+    assert.equal(song, songOf(result, 'Glass Tide.wav'));
+    assert.ok(song.files.find((member) => member.name === 'Tide Vox Raw.wav').stemPart, 'counted with the stems');
+});
+
+test('sample questions: files beside a sample pack are asked about once, as a list to tick', () => {
+    const files = [
+        file('Nv - Kick 1.wav', 'bounces', { folder: 'S' }),
+        file('Nv - Kick 2.wav', 'bounces', { folder: 'S' }),
+        file('Nv - Snare 1.wav', 'bounces', { folder: 'S' }),
+        file('Nv - Clap 1.wav', 'bounces', { folder: 'S' }),
+        file('Nv - Boom - Dark Power.wav', 'bounces', { folder: 'S' }),
+        file('Glass Tide.wav', 'bounces', { folder: 'B' })
+    ];
+    const result = groupCatalog(files);
+    const questions = result.context.sampleQuestions;
+    assert.equal(questions.length, 1);
+    assert.deepEqual(questions[0].files, ['Nv - Boom - Dark Power.wav']);
+    assert.match(questions[0].id, /^f[0-9a-f]{12}$/);
+    assert.ok(questions[0].pack, 'names the pack beside them');
+    const again = groupCatalog(files, { userRules: { skippedQuestions: [questions[0].id] } });
+    assert.equal(again.context.sampleQuestions.length, 0, 'answered or skipped: not asked again');
+});
+
+test('sample questions: never for a big mixed folder, never for a song with a project', () => {
+    const files = [file('Nv - Kick 1.wav', 'bounces', { folder: 'S' }), file('Nv - Kick 2.wav', 'bounces', { folder: 'S' }), file('Nv - Snare 1.wav', 'bounces', { folder: 'S' }), file('Nv - Clap 1.wav', 'bounces', { folder: 'S' }), file('Nv - Night Drive.wav', 'bounces', { folder: 'S' }), file('Nv - Night Drive Project', 'projects', { folder: 'S' })];
+    for (let index = 0; index < 12; index += 1) files.push(file(`Idea ${index} Glasswing${index}.wav`, 'bounces', { folder: 'S' }));
+    assert.equal(groupCatalog(files).context.sampleQuestions.length, 0);
+});

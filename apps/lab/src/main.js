@@ -359,6 +359,16 @@ function registerIpc() {
         }
         return labels.loadLabels(DATA_DIR, last.catalogId).marks;
     });
+    // Answers to "Are these samples?": { questionId: [file names ticked as samples] }.
+    ipcMain.handle('lab:answer-sample-questions', (_event, answers) => {
+        if (!last) throw new Error('Scan first');
+        const questions = last.view.notes.sampleQuestions || [];
+        for (const [id, ticked] of Object.entries(answers || {})) {
+            const question = questions.find((candidate) => candidate.id === id);
+            if (question) rulesStore.answerSampleQuestion(DATA_DIR, question, ticked);
+        }
+        return true;
+    });
     ipcMain.handle('lab:forget-ai-questions', () => {
         rulesStore.forgetAiQuestions(DATA_DIR);
         return true;

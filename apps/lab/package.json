@@ -5,7 +5,7 @@
   "private": true,
   "main": "src/main.js",
   "dependencies": {
-    "@importer-lab/contract": "1.5.0",
+    "@importer-lab/contract": "1.6.0",
     "@importer-lab/import-engine": "0.1.0"
   }
 }

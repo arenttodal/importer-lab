@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.0-dev.13 — 2026-11-09 (stems and samples that are not songs)
+
+- **Not a song…** in the check bar (next to Skip) and in "This is wrong" on a song: *a stem of another
+  song…* (pick the song; the file joins it as a stem), *a sample* (it joins the sample pack in its folder,
+  or a pack of the samples you marked there), *something else* (it goes to a **Not songs** list). On a
+  file: *a sample* or *something else*. Nothing is hidden or dropped: Not songs and sample packs are
+  listed but never counted as songs, and **It's a song** on either puts a file back. The marks are rules
+  on the next scan and are listed under Your corrections with Undo.
+- **Are these samples?** One question per small folder (eight songs or fewer): files beside a sample pack,
+  or a folder where most short songs look like samples. Tick the ones that are samples; the rest stay
+  songs, and the question is not asked again. Big mixed folders are never asked about.
+- Replay of the producer's catalogs (0.4.3 → 0.4.4): no group changes without answers; one question per
+  catalog (one file beside a pack in 2025, two in 2024). None of the 113 songs marked right changed.
+- Metrics counts "not a song" marks by reason; the check summary counts them.
+
+Contract 1.6.0 (optional `userRules.stems`, `userRules.notSongs`, `ProposedCatalog.notSongs`), engine 0.4.4-m4.
+
 ## 0.4.0-dev.12 — 2026-11-09 (a one-word category at the end)
 
 - A closing segment that is a one-word category alone or with stage and version words ("- Jam (rough)",

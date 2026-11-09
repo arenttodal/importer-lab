@@ -91,10 +91,16 @@ function looseStemsEntry(stems) {
     };
 }
 
+// Files the producer marked "Not a song" (not samples): one entry, listed, never counted as songs.
+function notSongsEntry(files) {
+    return { ...looseStemsEntry(files), key: 'not-songs', name: 'Not songs', kind: 'not-songs', counts: { files: files.length }, countsLine: plural(files.length, 'files'), reasons: ['You marked these as not songs. Open one to put it back.'] };
+}
+
 function toRendererView(result, roots) {
     const { catalog } = result;
     const looseStems = catalog.looseStems || [];
-    const files = [...catalog.unassigned, ...catalog.songs.flatMap((song) => song.files), ...looseStems];
+    const notSongs = catalog.notSongs || [];
+    const files = [...catalog.unassigned, ...catalog.songs.flatMap((song) => song.files), ...looseStems, ...notSongs];
     return {
         scanId: result.scanId,
         roots: roots.map((root) => ({ id: root.id, name: root.name })),
@@ -114,6 +120,7 @@ function toRendererView(result, roots) {
             fromScratch: Boolean(result.notes.fromScratch),
             courseSuggestions: (result.notes.courseSuggestions || []).map((entry) => ({ prefix: entry.prefix, files: entry.files, signal: entry.signal })),
             questions: (result.notes.questions || []).map((question) => ({ prefix: question.prefix, files: question.files, guess: question.guess, examples: question.examples })),
+            sampleQuestions: (result.notes.sampleQuestions || []).map((question) => ({ id: question.id, pack: question.pack, files: question.files, songs: question.songs })),
             clueCounts: result.notes.clueCounts || {},
             readers: result.notes.readers || {},
             links: result.notes.links || 0,
@@ -122,7 +129,7 @@ function toRendererView(result, roots) {
             ai: result.notes.ai || null
         },
         files: files.map(rendererFile),
-        songs: [...catalog.songs.map(rendererSong), ...(looseStems.length ? [looseStemsEntry(looseStems)] : [])],
+        songs: [...catalog.songs.map(rendererSong), ...(looseStems.length ? [looseStemsEntry(looseStems)] : []), ...(notSongs.length ? [notSongsEntry(notSongs)] : [])],
         duplicates: catalog.duplicates.length,
         otherFiles: catalog.unassigned.length,
         baselines: {

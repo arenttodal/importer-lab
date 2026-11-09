@@ -9,7 +9,7 @@ const $ = (id) => document.getElementById(id);
 
 const state = { folders: [], view: null, marks: [], song: null, settings: { showLabTools: false, scanOptions: {} }, liveSongs: [], showAllLive: false, scanning: false, showOtherKinds: false };
 
-const KIND_LABEL = { template: 'Template', course: 'Course', 'sample-pack': 'Sample pack', 'stem-set': 'Stems only', 'loose-stems': 'Loose stems' };
+const KIND_LABEL = { template: 'Template', course: 'Course', 'sample-pack': 'Sample pack', 'stem-set': 'Stems only', 'loose-stems': 'Loose stems', 'not-songs': 'Not songs' };
 const BAND_LABEL = { unsure: 'Check', unclear: 'Unclear' };
 
 const TYPE_LABEL = { bounces: 'Bounce', stems: 'Stem', projects: 'Project', videos: 'Video', unknown: 'Other' };
@@ -18,8 +18,10 @@ const MARK_LABEL = {
     split: { song: 'Should be split' },
     merge: { song: 'Should be merged' },
     right: { song: 'Right' },
-    rename: { song: 'Renamed' }
+    rename: { song: 'Renamed' },
+    'not-song': { song: 'Not a song', file: 'Not a song' }
 };
+const NOT_SONG_TEXT = { stem: 'a stem', sample: 'a sample', other: 'not a song' };
 const LIVE_SONGS_SHOWN = 20;
 
 function escapeHtml(value) {
@@ -258,9 +260,19 @@ function marksFor(target, songName, fileId = null) {
 function markChips(marks) {
     return marks
         .map((mark) => {
-            const label = MARK_LABEL[mark.kind][mark.target] + (mark.mergeWithSongName ? ` with ${mark.mergeWithSongName}` : '');
+            const label = MARK_LABEL[mark.kind][mark.target] + (mark.mergeWithSongName ? ` with ${mark.mergeWithSongName}` : '') + (mark.notSongReason ? `: ${NOT_SONG_TEXT[mark.notSongReason]}` : '');
             return `<span class="std-chip lab-mark">${escapeHtml(label)} <button class="std-inline-btn" type="button" data-undo="${escapeHtml(mark.id)}">Undo</button></span>`;
         })
+        .join('');
+}
+
+// In "Not songs" or a sample pack: the files the producer marked "Not a song", each with "It's a song".
+function backToSongButtons(song) {
+    if (!['not-songs', 'sample-pack'].includes(song.kind)) return '';
+    const names = new Set(song.fileIds.map((id) => state.view.files.find((file) => file.fileId === id)?.name));
+    return (state.marks || [])
+        .filter((mark) => mark.kind === 'not-song' && mark.notSongReason !== 'stem' && (mark.target === 'file' ? names.has(mark.fileName) : (mark.fileNames || []).some((name) => names.has(name))))
+        .map((mark) => `<button class="std-modal-btn std-modal-btn--secondary" type="button" data-undo="${escapeHtml(mark.id)}">It's a song: ${escapeHtml(mark.target === 'file' ? mark.fileName : mark.songName)}</button>`)
         .join('');
 }
 
@@ -354,7 +366,7 @@ function renderSong() {
     const band = song.kind !== 'song' ? KIND_LABEL[song.kind] : { sure: 'Sure', unsure: 'Check this', unclear: 'Unclear' }[song.band];
     $('songTitle').textContent = song.name;
     $('songCounts').textContent = [song.countsLine, facts, band].filter(Boolean).join(' · ');
-    $('songActions').innerHTML = `${markChips(marksFor('song', song.name))}<button class="std-modal-btn std-modal-btn--secondary" type="button" data-wrong-song="${escapeHtml(song.key)}">This is wrong</button>`;
+    $('songActions').innerHTML = `${markChips(marksFor('song', song.name))}${backToSongButtons(song)}<button class="std-modal-btn std-modal-btn--secondary" type="button" data-wrong-song="${escapeHtml(song.key)}">This is wrong</button>`;
     $('songReasons').innerHTML = song.reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join('');
 
     $('songMatchesBlock').hidden = song.possibleMatches.length === 0;
@@ -438,9 +450,22 @@ function songMenu(anchor, song) {
             label: 'Should be merged with…',
             onSelect: async () => openMergePicker(song, await saveMark({ kind: 'merge', target: 'song', songName: song.name }))
         },
-        { label: 'Not a real song', onSelect: () => saveMark({ kind: 'wrong-song', target: 'song', songName: song.name }) },
+        ...notSongItems(song),
         { label: 'Rename…', onSelect: () => openRename(song) }
     ]);
+}
+
+// "Not a song": a stem of another song (pick it), a sample, or something else. Listed, never hidden.
+function notSongItems(song, extra = {}, afterSave = null) {
+    const done = () => afterSave && afterSave();
+    return [
+        {
+            label: 'Not a song: a stem of another song…',
+            onSelect: async () => openStemPicker(song, await saveMark({ kind: 'not-song', notSongReason: 'stem', target: 'song', songName: song.name, ...extra }), afterSave)
+        },
+        { label: 'Not a song: a sample', onSelect: async () => (await saveMark({ kind: 'not-song', notSongReason: 'sample', target: 'song', songName: song.name, ...extra }), done()) },
+        { label: 'Not a song: something else', onSelect: async () => (await saveMark({ kind: 'not-song', notSongReason: 'other', target: 'song', songName: song.name, ...extra }), done()) }
+    ];
 }
 
 function openRename(song) {
@@ -466,12 +491,34 @@ function openRename(song) {
 }
 
 function fileMenu(anchor, file) {
+    const fileMark = { target: 'file', songName: state.song.name, fileId: file.fileId, fileName: file.name, fileType: file.type };
     openMenu(anchor, [
-        { label: 'In the wrong song', onSelect: () => saveMark({ kind: 'wrong-song', target: 'file', songName: state.song.name, fileId: file.fileId, fileName: file.name, fileType: file.type }) }
+        { label: 'In the wrong song', onSelect: () => saveMark({ kind: 'wrong-song', ...fileMark }) },
+        { label: 'Not a song: a sample', onSelect: () => saveMark({ kind: 'not-song', notSongReason: 'sample', ...fileMark }) },
+        { label: 'Not a song: something else', onSelect: () => saveMark({ kind: 'not-song', notSongReason: 'other', ...fileMark }) }
     ]);
 }
 
+// "A stem of …": which song the stem belongs to.
+function openStemPicker(song, mark, afterSave = null) {
+    openSongPicker(song, 'A stem of…', `“${song.name}” is a stem of:`, async (chosen) => {
+        const updated = await api.updateMark(mark.id, { stemOfSongName: chosen, stemOfFileNames: fileNamesOf(chosen) });
+        Object.assign(state.marks.find((candidate) => candidate.id === mark.id), updated);
+        refreshAfterMark();
+        if (afterSave) afterSave();
+    });
+}
+
 function openMergePicker(song, mark, afterSave = null) {
+    openSongPicker(song, 'Same song as…', `“${song.name}” should be merged with:`, async (chosen) => {
+        const updated = await api.updateMark(mark.id, { mergeWithSongName: chosen, mergeWithFileNames: fileNamesOf(chosen) });
+        Object.assign(state.marks.find((candidate) => candidate.id === mark.id), updated);
+        refreshAfterMark();
+        if (afterSave) afterSave();
+    });
+}
+
+function openSongPicker(song, title, subtitle, onSave) {
     let chosen = null;
     const body = document.createElement('div');
     body.className = 'lab-picker';
@@ -489,17 +536,14 @@ function openMergePicker(song, mark, afterSave = null) {
     }
     const modal = window.createStandardModal({
         archetype: 'standard',
-        title: 'Same song as…',
-        subtitle: `“${song.name}” should be merged with:`,
+        title,
+        subtitle,
         body,
         primaryAction: {
             label: 'Save',
             onClick: async () => {
-                const updated = await api.updateMark(mark.id, { mergeWithSongName: chosen, mergeWithFileNames: fileNamesOf(chosen) });
-                Object.assign(state.marks.find((candidate) => candidate.id === mark.id), updated);
-                refreshAfterMark();
                 modal.close();
-                if (afterSave) afterSave();
+                await onSave(chosen);
             }
         }
     });
@@ -661,6 +705,7 @@ function renderLab() {
             ['Marks: should be split (false merges)', marks.filter((mark) => mark.kind === 'split').length],
             ['Marks: should be merged (false splits)', marks.filter((mark) => mark.kind === 'merge').length],
             ['Marks: file in the wrong song', marks.filter((mark) => mark.kind === 'wrong-song' && mark.target === 'file').length],
+            ['Marks: not a song (stem / sample / other)', ['stem', 'sample', 'other'].map((reason) => marks.filter((mark) => mark.kind === 'not-song' && mark.notSongReason === reason).length).join(' / ')],
             ['Projects read', view.notes.projectsRead],
             ['Clue links (timing, samples, batches, duplicates)', view.notes.links],
             ['Duplicate sets', view.duplicates],
@@ -755,13 +800,15 @@ const aiQuestionsOf = (view) => (view && view.notes.ai && view.notes.ai.question
 function renderQuestions(view) {
     const questions = view.notes.questions || [];
     const aiQuestions = aiQuestionsOf(view);
-    const total = questions.length + aiQuestions.length;
+    const sampleQuestions = view.notes.sampleQuestions || [];
+    const total = questions.length + aiQuestions.length + sampleQuestions.length;
     $('questionsAlert').hidden = total === 0;
     if (!total) return;
     $('questionsCount').textContent = `${total} quick question${total === 1 ? '' : 's'}`;
     const parts = [];
     if (questions.length) parts.push(`What do ${questions.slice(0, 3).map((question) => `“${shown(question.prefix)}”`).join(', ')}${questions.length > 3 ? ' and others' : ''} mean in your catalog?`);
     if (aiQuestions.length) parts.push(`The AI has ${aiQuestions.length === 1 ? 'a question' : `${aiQuestions.length} questions`} only you can answer.`);
+    if (sampleQuestions.length) parts.push(`Some files look like samples, not songs.`);
     $('questionsDetail').textContent = `${parts.join(' ')} Your answers apply from the next scan.`;
 }
 
@@ -781,10 +828,26 @@ function aiQuestionRow(question, index) {
     </div>`;
 }
 
+// "Are these samples?": one question per folder; the producer ticks the files that are samples.
+function sampleQuestionRow(question, index) {
+    const intro = question.pack ? `These sit beside the sample pack “${question.pack}”.` : 'Most of these look like samples.';
+    const toggles = question.files
+        .map(
+            (name) => `<label class="std-toggle">
+                <input class="std-toggle-input" type="checkbox" data-sample-question="${index}" value="${escapeHtml(name)}" />
+                <span class="std-toggle-rail"></span>
+                <span class="std-toggle-label">${escapeHtml(name)}</span>
+            </label>`
+        )
+        .join('');
+    return `<div class="std-form-row"><span class="std-form-label">${escapeHtml(intro)} Tick the ones that are samples, not songs. <span class="lab-muted">The rest stay songs; you are not asked about these again.</span></span>${toggles}</div>`;
+}
+
 function openQuestions() {
     const questions = state.view?.notes.questions || [];
     const aiQuestions = aiQuestionsOf(state.view);
-    if (!questions.length && !aiQuestions.length) return window.showToast?.('No open questions. Answers can be changed under Lab → Rules.', 'success');
+    const sampleQuestions = state.view?.notes.sampleQuestions || [];
+    if (!questions.length && !aiQuestions.length && !sampleQuestions.length) return window.showToast?.('No open questions. Answers can be changed under Lab → Rules.', 'success');
     const body = document.createElement('div');
     body.className = 'lab-picker';
     body.innerHTML = questions
@@ -797,7 +860,7 @@ function openQuestions() {
                 </select>
             </div>`
         )
-        .join('') + aiQuestions.map(aiQuestionRow).join('');
+        .join('') + aiQuestions.map(aiQuestionRow).join('') + sampleQuestions.map(sampleQuestionRow).join('');
     const modal = window.createStandardModal({
         archetype: 'standard',
         title: 'Teach the importer',
@@ -812,6 +875,11 @@ function openQuestions() {
                 const aiAnswers = {};
                 for (const select of body.querySelectorAll('[data-ai-question]')) if (select.value) aiAnswers[aiQuestions[Number(select.dataset.aiQuestion)].id] = select.value;
                 if (Object.keys(aiAnswers).length) state.marks = await api.answerAiQuestions(aiAnswers);
+                if (sampleQuestions.length) {
+                    const ticked = Object.fromEntries(sampleQuestions.map((question) => [question.id, []]));
+                    for (const toggle of body.querySelectorAll('[data-sample-question]:checked')) ticked[sampleQuestions[Number(toggle.dataset.sampleQuestion)].id].push(toggle.value);
+                    await api.answerSampleQuestions(ticked);
+                }
                 modal.close();
                 startScan();
             }
@@ -839,7 +907,11 @@ const CORRECTION_TEXT = {
     split: (mark) => `Should be split: “${mark.songName}”`,
     merge: (mark) => `Should be merged: “${mark.songName}” with “${mark.mergeWithSongName || '…'}”`,
     'wrong-song': (mark) => (mark.target === 'file' ? `Wrong song: “${mark.fileName}” is not part of “${mark.songName}”` : `Wrong: “${mark.songName}”`),
-    rename: (mark) => `Rename: “${mark.songName}” to “${mark.newName}”`
+    rename: (mark) => `Rename: “${mark.songName}” to “${mark.newName}”`,
+    'not-song': (mark) => {
+        const what = mark.target === 'file' ? mark.fileName : mark.songName;
+        return mark.notSongReason === 'stem' ? `A stem of “${mark.stemOfSongName || '…'}”: “${what}”` : `Not a song (${NOT_SONG_TEXT[mark.notSongReason] || 'other'}): “${what}”`;
+    }
 };
 
 async function renderCorrections() {
@@ -906,7 +978,7 @@ function nextCheckSong() {
     if (state.check.index < state.check.keys.length) return showCheckSong();
     const answers = Object.values(state.check.answers);
     const count = (kind) => answers.filter((answer) => answer === kind).length;
-    $('checkSummary').textContent = `You checked ${answers.length} of ${state.check.keys.length} songs: ${count('right')} right, ${count('wrong-song')} wrong, ${count('split')} to split, ${count('merge')} to merge. Your answers are saved and go in the results you send.`;
+    $('checkSummary').textContent = `You checked ${answers.length} of ${state.check.keys.length} songs: ${count('right')} right, ${count('wrong-song')} wrong, ${count('split')} to split, ${count('merge')} to merge, ${count('not-song')} not songs. Your answers are saved and go in the results you send.`;
     state.check = null;
     navigate('checkDone');
     api.checkSummary().then((summary) => ($('checkConfidence').textContent = confidenceText(summary)));
@@ -916,7 +988,18 @@ async function answerCheck(kind) {
     const song = state.song;
     if (kind !== 'skip') {
         const pick = state.check.picks.get(song.key) || {};
-        const mark = await saveMark({ kind, target: 'song', songName: song.name, check: true, songBand: song.band, songKind: song.kind, stratum: pick.stratum, sampleWeight: pick.weight });
+        const checkFields = { check: true, songBand: song.band, songKind: song.kind, stratum: pick.stratum, sampleWeight: pick.weight };
+        if (kind === 'not-song') {
+            const anchor = document.querySelector('#checkBar [data-check="not-song"]');
+            return openMenu(
+                anchor,
+                notSongItems(song, checkFields, () => {
+                    state.check.answers[song.key] = 'not-song';
+                    nextCheckSong();
+                })
+            );
+        }
+        const mark = await saveMark({ kind, target: 'song', songName: song.name, ...checkFields });
         state.check.answers[song.key] = kind;
         if (kind === 'merge') return openMergePicker(song, mark, nextCheckSong);
     }

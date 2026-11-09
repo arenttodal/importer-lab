@@ -2,7 +2,7 @@
 
 // Runtime constants for the contract. Types are in index.d.ts.
 
-const CONTRACT_VERSION = '1.5.0';
+const CONTRACT_VERSION = '1.6.0';
 
 const FILE_TYPES = Object.freeze(['bounces', 'stems', 'projects', 'videos', 'unknown']);
 

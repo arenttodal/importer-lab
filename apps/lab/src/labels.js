@@ -8,7 +8,9 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 
 // 'right' is the answer "Right" in the 30-song check: the song is correct as shown.
-const KINDS = new Set(['wrong-song', 'split', 'merge', 'right', 'rename']);
+// 'not-song': "Not a song" — a stem of another song, a sample, or something else (notSongReason).
+const KINDS = new Set(['wrong-song', 'split', 'merge', 'right', 'rename', 'not-song']);
+const NOT_SONG_REASONS = new Set(['stem', 'sample', 'other']);
 
 function catalogId(rootPaths) {
     return crypto.createHash('sha256').update([...rootPaths].sort().join('\u0000')).digest('hex').slice(0, 12);
@@ -48,6 +50,7 @@ function cleanMark(input, context) {
         // File names (names only) so the mark can become a rule that survives renamed songs.
         fileNames: Array.isArray(input.fileNames) ? input.fileNames.slice(0, 2000).map((name) => String(name).slice(0, 500)) : null,
         newName: input.kind === 'rename' ? text(input.newName) : null,
+        notSongReason: input.kind === 'not-song' && NOT_SONG_REASONS.has(input.notSongReason) ? input.notSongReason : null,
         // Answers from "Check 30 songs" (a random sample) are flagged, with the song's band and kind.
         check: input.check === true,
         songBand: input.check === true ? text(input.songBand) : null,
@@ -73,6 +76,9 @@ function updateMark(dataDir, id, markId, changes) {
     if (!mark) throw new Error('Mark not found');
     if (changes.mergeWithSongName !== undefined && mark.kind === 'merge') mark.mergeWithSongName = String(changes.mergeWithSongName).slice(0, 500);
     if (Array.isArray(changes.mergeWithFileNames) && mark.kind === 'merge') mark.mergeWithFileNames = changes.mergeWithFileNames.slice(0, 2000).map((name) => String(name).slice(0, 500));
+    // "A stem of …": the song the stem belongs to.
+    if (changes.stemOfSongName !== undefined && mark.kind === 'not-song') mark.stemOfSongName = String(changes.stemOfSongName).slice(0, 500);
+    if (Array.isArray(changes.stemOfFileNames) && mark.kind === 'not-song') mark.stemOfFileNames = changes.stemOfFileNames.slice(0, 2000).map((name) => String(name).slice(0, 500));
     saveLabels(dataDir, labels);
     return mark;
 }
@@ -97,7 +103,7 @@ function listCorrections(dataDir) {
         const id = name.replace(/\.json$/, '');
         for (const mark of loadLabels(dataDir, id).marks) {
             if (mark.kind === 'right') continue;
-            list.push({ id: mark.id, catalogId: id, kind: mark.kind, target: mark.target, songName: mark.songName, fileName: mark.fileName, mergeWithSongName: mark.mergeWithSongName, newName: mark.newName, check: mark.check, createdAt: mark.createdAt, engineVersion: mark.engineVersion });
+            list.push({ id: mark.id, catalogId: id, kind: mark.kind, target: mark.target, songName: mark.songName, fileName: mark.fileName, mergeWithSongName: mark.mergeWithSongName, newName: mark.newName, notSongReason: mark.notSongReason || null, stemOfSongName: mark.stemOfSongName || null, check: mark.check, createdAt: mark.createdAt, engineVersion: mark.engineVersion });
         }
     }
     return list.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));

@@ -3,6 +3,24 @@
 Newest first. Each entry: what was decided, why, and what would change it. Conflicts between the spec
 and the brief are in `docs/CONFLICTS.md`; this log records how the build resolved them.
 
+## 2026-11-09 — 0.4.0-dev.13: stems and samples that are not songs
+
+**D82. No automatic "not a song" yet.** In the producer's catalog no single signal separates stems and
+samples from songs: many real recordings are classified as stems, the only song under 10 seconds is a real
+idea, and only 177 of 1,291 files have a readable length. So the lab learns from the producer first
+(the producer's decision, 9 Nov): "Not a song" is an answer, and an automatic rule will need two
+independent signals and a replay that moves none of the songs marked right.
+
+**D83. Listed, never hidden.** A file marked "a sample" joins the sample pack in its folder (or a pack of
+the marked samples in that folder); "something else" goes to a Not songs list (contract 1.6.0
+`notSongs`). Neither counts as a song; both show "It's a song" to undo. "A stem of …" is a together
+rule plus a `stems` rule, so the file joins that song as a stem.
+
+**D84. One question per folder.** Asked only for folders with eight songs or fewer whose songs are one or
+two audio files without a project, and that hold a sample pack or are mostly sample-looking (one-shot or
+numbered names, or under 8 seconds). The producer ticks samples; the id (a hash of the file names) is kept
+in `rules.json` so it is not asked again. Ticked files are saved as `samples` in `rules.json`.
+
 ## 2026-11-09 — 0.4.0-dev.12: a one-word category at the end
 
 **D81.** D78 kept one-word categories at the end as title, to be safe. The producer's check (11:35) showed

@@ -107,6 +107,7 @@ function summarize(marks) {
         wrong: count('wrong-song'),
         split: count('split'),
         merge: count('merge'),
+        notSong: count('not-song'),
         target: TARGET_MARKS,
         lowerBound95: bound === null ? null : Math.floor(bound * 1000) / 1000,
         weightedRightShare: weightSum ? Math.round((weightedRight / weightSum) * 1000) / 1000 : null,
