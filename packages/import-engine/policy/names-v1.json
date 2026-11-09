@@ -1,5 +1,5 @@
 {
-    "version": "lab-names-5",
+    "version": "lab-names-6",
     "about": "Name policy for the Importer Lab engine. Works on the main app's preClean() output. Words listed here are set aside from the song identity and kept as version labels or stem parts. Changing anything here means a new version string.",
     "formatWords": [
         "wav",

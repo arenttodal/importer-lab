@@ -528,3 +528,14 @@ test('dev.10: a song described as a music bed is one song with its jam and proje
     assert.ok(!sameSong(result, 'Beat Idea - Revisit May 9 WIP 1.0.wav', 'Beat Idea - Revisit May 9 Sample V1.wav'), 'a name beside the date is another song');
     assert.ok(!sameSong(result, 'Beat Idea - Revisit May 9 WIP 1.0.wav', 'Beat Idea - Revisit May 10 WIP 1.0.wav'), 'another day is another song');
 });
+
+test('dev.12: "- Jam (rough)" after a title is that song\'s jam', () => {
+    const result = groupCatalog([
+        file('Sample Idea - May 6 - Orchestra - Glide 1.1.wav', 'bounces', { folder: 'A' }),
+        file('Sample Idea - May 6 - Orchestra - Glide Project', 'projects', { folder: 'P' }),
+        file('Sample Idea - May 6 - Orchestra - Glide - Jam (rough).wav', 'bounces', { folder: 'A' }),
+        file('Sample Idea - May 7 - Orchestra - Rise - Jam (rough).wav', 'bounces', { folder: 'A' })
+    ]);
+    assert.ok(sameSong(result, 'Sample Idea - May 6 - Orchestra - Glide 1.1.wav', 'Sample Idea - May 6 - Orchestra - Glide Project', 'Sample Idea - May 6 - Orchestra - Glide - Jam (rough).wav'));
+    assert.ok(!sameSong(result, 'Sample Idea - May 6 - Orchestra - Glide - Jam (rough).wav', 'Sample Idea - May 7 - Orchestra - Rise - Jam (rough).wav'), 'another name stays apart');
+});

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0-dev.12 — 2026-11-09 (a one-word category at the end)
+
+- A closing segment that is a one-word category alone or with stage and version words ("- Jam (rough)",
+  "- Jam 2") describes the file, like "- Musicbed Idea" in dev.10. "- Jam With Lars" stays title.
+- Replay, 0.4.2-m4 → 0.4.3-m4 (`lab-names-6`): 2025 catalog 549 → 548 songs (the one song the producer
+  marked), 2024 catalog unchanged; none of the 113 songs marked right changed; answer key unchanged.
+
 ## 0.4.0-dev.11 — 2026-11-09 (the AI asks you)
 
 - **The AI asks the producer** when only they can settle something: "Is X the same song as Y?" (Same

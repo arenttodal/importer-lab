@@ -3,6 +3,13 @@
 Newest first. Each entry: what was decided, why, and what would change it. Conflicts between the spec
 and the brief are in `docs/CONFLICTS.md`; this log records how the build resolved them.
 
+## 2026-11-09 — 0.4.0-dev.12: a one-word category at the end
+
+**D81.** D78 kept one-word categories at the end as title, to be safe. The producer's check (11:35) showed
+"… Ride - Jam (rough)" is the same song as "… Ride". A closing segment that is a one-word category alone,
+or with only stage and version words, now describes the file; with any other word it stays title.
+Replay: one song changed in the 2025 catalog, none in 2024.
+
 ## 2026-11-09 — 0.4.0-dev.11: the AI asks the producer
 
 **D80. Questions from the AI** (the producer's request, 9 Nov). Each answer may carry a question for the

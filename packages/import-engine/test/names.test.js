@@ -1,6 +1,6 @@
 'use strict';
 
-// Tests first for the name policy (lab-names-5). Names are invented; each case follows a pattern
+// Tests first for the name policy (lab-names-6). Names are invented; each case follows a pattern
 // from docs/FINDINGS.md. `title` is the song identity the policy proposes; `label` collects the
 // words it set aside as a version label; `stemPart` is the part named in a stem file.
 
@@ -158,9 +158,11 @@ test('a category phrase at the end of a name describes the file; it is not title
     assert.equal(analyse('May 3 - Harbour Lights - Music Bed 2 Copy Project', 'projects').title, 'harbour lights');
     assert.equal(analyse('Morning 5 - May 3 - Harbour Lights.wav').title, 'harbour lights');
     assert.match(analyse('May 3 - Harbour Lights - Musicbed Idea 1.1.wav').label, /musicbed idea/);
-    // Single-word categories at the end stay title: "Jam", "Sample" can be part of a name.
-    assert.equal(analyse('Glass Tide - Jam.wav').title, 'glass tide jam');
-    assert.equal(analyse('Copper Field - Sample.wav').title, 'copper field sample');
+    // A one-word category at the end describes the file only alone or with stage and version words.
+    assert.equal(analyse('Glass Tide - Jam (rough).wav').title, 'glass tide');
+    assert.equal(analyse('Glass Tide - Jam 2.wav').title, 'glass tide');
+    assert.equal(analyse('Glass Tide - Jam With Lars.wav').title, 'glass tide jam with lars');
+    assert.equal(analyse('Glass Tide Jam.wav').title, 'glass tide jam', 'inside the title it stays');
     // At the start it is still the category prefix.
     assert.deepEqual([analyse('Music Bed - Calm Water.wav').title, analyse('Music Bed - Calm Water.wav').category], ['calm water', 'music bed']);
 });
