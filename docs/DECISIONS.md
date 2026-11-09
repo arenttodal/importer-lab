@@ -3,6 +3,18 @@
 Newest first. Each entry: what was decided, why, and what would change it. Conflicts between the spec
 and the brief are in `docs/CONFLICTS.md`; this log records how the build resolved them.
 
+## 2026-11-09 — 0.4.0-dev.11: the AI asks the producer
+
+**D80. Questions from the AI** (the producer's request, 9 Nov). Each answer may carry a question for the
+producer: "same-song" (names an offered candidate) or "what-is" (names a word). Up to six per scan reach
+the producer, in the existing Teach the importer window; a question changes nothing by itself. Each has
+a stable id (a hash of the file names, or the word), kept in `rules.json` once answered or skipped, so it
+is not asked again. "Same song" is saved as an ordinary merge mark (so it shows under Your corrections
+with Undo and becomes a together rule); "Different songs" is a `notSame` pair (contract 1.5.0) that
+removes the other song from the item's candidates and suggestions; "What is" is a prefix answer. The
+main process looks each question up in the last scan by id, so the window cannot invent one. The model
+still sees no paths: question text comes back from the model and stays on the Mac.
+
 ## 2026-11-08 — 0.4.0-dev.10: two fixes from the 22:44 check
 
 **D78. A category phrase at the end describes the file.** A segment after the title that starts with a

@@ -9,6 +9,10 @@
 //   wrong-song   → remove (the file leaves that song)
 //   rename       → names (the song is shown under the new name)
 //
+// Answers to the AI's questions: "same song" is saved as a merge mark; "different songs" as a notSame
+// pair; "what is …?" as a prefix answer. Every answered or skipped question id is kept, so it is not
+// asked again.
+//
 // Marks made before marks carried file names are resolved from the saved scan they were made on.
 
 const fs = require('node:fs');
@@ -23,9 +27,9 @@ function rulesPath(dataDir) {
 function loadRules(dataDir) {
     try {
         const saved = JSON.parse(fs.readFileSync(rulesPath(dataDir), 'utf8'));
-        return { format: 'importer-lab-rules', version: 1, prefixes: saved.prefixes || {}, useMarks: saved.useMarks !== false };
+        return { format: 'importer-lab-rules', version: 1, prefixes: saved.prefixes || {}, useMarks: saved.useMarks !== false, notSame: saved.notSame || [], skippedQuestions: saved.skippedQuestions || [] };
     } catch {
-        return { format: 'importer-lab-rules', version: 1, prefixes: {}, useMarks: true };
+        return { format: 'importer-lab-rules', version: 1, prefixes: {}, useMarks: true, notSame: [], skippedQuestions: [] };
     }
 }
 
@@ -50,6 +54,26 @@ function answerPrefixes(dataDir, answers) {
 function setUseMarks(dataDir, useMarks) {
     const rules = loadRules(dataDir);
     rules.useMarks = useMarks === true;
+    saveRules(dataDir, rules);
+    return rules;
+}
+
+// Records the producer's answer to one AI question (the question as the scan produced it).
+// answer: 'same' | 'different' | 'skip' | a prefix role (for "what is …?").
+function answerAiQuestion(dataDir, question, answer) {
+    const rules = loadRules(dataDir);
+    const names = (list) => (Array.isArray(list) ? list.slice(0, 2000).map((name) => String(name).slice(0, 500)) : []);
+    if (answer === 'different' && question.kind === 'same-song') rules.notSame.push({ a: names(question.songFiles), b: names(question.otherFiles) });
+    if (question.kind === 'what-is' && ROLES.includes(answer)) rules.prefixes[String(question.word).toLowerCase().trim().slice(0, 100)] = answer;
+    if (!rules.skippedQuestions.includes(question.id)) rules.skippedQuestions.push(String(question.id).slice(0, 40));
+    saveRules(dataDir, rules);
+    return rules;
+}
+
+// Ask the skipped and answered AI questions again (answers already saved stay).
+function forgetAiQuestions(dataDir) {
+    const rules = loadRules(dataDir);
+    rules.skippedQuestions = [];
     saveRules(dataDir, rules);
     return rules;
 }
@@ -82,7 +106,7 @@ function rulesFromMarks(marks, filesOf = () => null) {
 // What the engine gets: prefix answers plus, when switched on, the rules from every mark.
 function buildUserRules(dataDir, marks, filesOf) {
     const saved = loadRules(dataDir);
-    return { prefixes: saved.prefixes, ...(saved.useMarks ? rulesFromMarks(marks, filesOf) : { together: [], apart: [], remove: [], names: [] }) };
+    return { prefixes: saved.prefixes, notSame: saved.notSame, skippedQuestions: saved.skippedQuestions, ...(saved.useMarks ? rulesFromMarks(marks, filesOf) : { together: [], apart: [], remove: [], names: [] }) };
 }
 
-module.exports = { loadRules, saveRules, answerPrefixes, setUseMarks, rulesFromMarks, buildUserRules, ROLES };
+module.exports = { loadRules, saveRules, answerPrefixes, setUseMarks, rulesFromMarks, buildUserRules, answerAiQuestion, forgetAiQuestions, ROLES };

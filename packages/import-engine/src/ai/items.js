@@ -77,9 +77,18 @@ function commonWords(songs) {
     return new Set([...counts].filter(([, count]) => count > limit).map(([token]) => token));
 }
 
+// notSame: the producer's answers "different songs" ({ a: [file names], b: [file names] }).
+function isNotSame(song, other, notSame) {
+    const names = (entry) => new Set(entry.files.map((member) => member.name));
+    const mine = names(song);
+    const theirs = names(other);
+    const overlaps = (list, set) => list.some((name) => set.has(name));
+    return notSame.some((pair) => (overlaps(pair.a, mine) && overlaps(pair.b, theirs)) || (overlaps(pair.b, mine) && overlaps(pair.a, theirs)));
+}
+
 // The unclear songs, each with its own candidates: songs it already has a clue to, songs sharing a
-// rare word, songs in the same folder.
-function buildItems(allSongs) {
+// rare word, songs in the same folder. Never a song the producer said is a different one.
+function buildItems(allSongs, { notSame = [] } = {}) {
     const songs = allSongs.filter((song) => song.kind === 'song');
     const common = commonWords(songs);
     const filesByFolder = new Map();
@@ -106,7 +115,7 @@ function buildItems(allSongs) {
     for (const song of songs.filter((candidate) => candidate.band === 'unclear')) {
         const score = new Map();
         const add = (other, points) => {
-            if (!other || other === song) return;
+            if (!other || other === song || isNotSame(song, other, notSame)) return;
             score.set(other, (score.get(other) || 0) + points);
         };
         for (const match of song.possibleMatches || []) add(byId.get(match.proposalId), 3);
@@ -133,4 +142,4 @@ function buildItems(allSongs) {
     return items;
 }
 
-module.exports = { buildItems, clean, opaque };
+module.exports = { buildItems, clean, opaque, isNotSame };

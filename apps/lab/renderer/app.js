@@ -750,17 +750,41 @@ function shown(prefix) {
     return prefix.replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
 }
 
+const aiQuestionsOf = (view) => (view && view.notes.ai && view.notes.ai.questions) || [];
+
 function renderQuestions(view) {
     const questions = view.notes.questions || [];
-    $('questionsAlert').hidden = questions.length === 0;
-    if (!questions.length) return;
-    $('questionsCount').textContent = `${questions.length} quick question${questions.length === 1 ? '' : 's'}`;
-    $('questionsDetail').textContent = `What do ${questions.slice(0, 3).map((question) => `“${shown(question.prefix)}”`).join(', ')}${questions.length > 3 ? ' and others' : ''} mean in your catalog? Your answers apply from the next scan.`;
+    const aiQuestions = aiQuestionsOf(view);
+    const total = questions.length + aiQuestions.length;
+    $('questionsAlert').hidden = total === 0;
+    if (!total) return;
+    $('questionsCount').textContent = `${total} quick question${total === 1 ? '' : 's'}`;
+    const parts = [];
+    if (questions.length) parts.push(`What do ${questions.slice(0, 3).map((question) => `“${shown(question.prefix)}”`).join(', ')}${questions.length > 3 ? ' and others' : ''} mean in your catalog?`);
+    if (aiQuestions.length) parts.push(`The AI has ${aiQuestions.length === 1 ? 'a question' : `${aiQuestions.length} questions`} only you can answer.`);
+    $('questionsDetail').textContent = `${parts.join(' ')} Your answers apply from the next scan.`;
+}
+
+function aiQuestionRow(question, index) {
+    const options =
+        question.kind === 'same-song'
+            ? '<option value="same">Same song</option><option value="different">Different songs</option>'
+            : Object.entries(ROLE_LABEL).map(([role, label]) => `<option value="${role}">${escapeHtml(label)}</option>`).join('');
+    const about = question.kind === 'same-song' ? `“${question.songName}” and “${question.otherName}”` : `${question.songName}`;
+    return `<div class="std-form-row">
+        <span class="std-form-label">${escapeHtml(question.text)} <span class="lab-muted">AI question · ${escapeHtml(about)}</span></span>
+        <select class="std-form-input" data-ai-question="${index}">
+            <option value="" selected>Choose…</option>
+            ${options}
+            <option value="skip">Not sure (don't ask again)</option>
+        </select>
+    </div>`;
 }
 
 function openQuestions() {
     const questions = state.view?.notes.questions || [];
-    if (!questions.length) return window.showToast?.('No open questions. Answers can be changed under Lab → Rules.', 'success');
+    const aiQuestions = aiQuestionsOf(state.view);
+    if (!questions.length && !aiQuestions.length) return window.showToast?.('No open questions. Answers can be changed under Lab → Rules.', 'success');
     const body = document.createElement('div');
     body.className = 'lab-picker';
     body.innerHTML = questions
@@ -773,7 +797,7 @@ function openQuestions() {
                 </select>
             </div>`
         )
-        .join('');
+        .join('') + aiQuestions.map(aiQuestionRow).join('');
     const modal = window.createStandardModal({
         archetype: 'standard',
         title: 'Teach the importer',
@@ -785,6 +809,9 @@ function openQuestions() {
                 const answers = {};
                 for (const select of body.querySelectorAll('[data-question]')) if (select.value) answers[questions[Number(select.dataset.question)].prefix] = select.value;
                 await api.answerPrefixes(answers);
+                const aiAnswers = {};
+                for (const select of body.querySelectorAll('[data-ai-question]')) if (select.value) aiAnswers[aiQuestions[Number(select.dataset.aiQuestion)].id] = select.value;
+                if (Object.keys(aiAnswers).length) state.marks = await api.answerAiQuestions(aiAnswers);
                 modal.close();
                 startScan();
             }
@@ -804,6 +831,7 @@ async function renderRules() {
     const counts = rules.fromMarks;
     $('rulesFromMarks').textContent = `${counts.together} keep-together, ${counts.apart} keep-apart, ${counts.remove} file-out and ${counts.names} rename rules from your marks.`;
     $('rulesUseMarks').checked = rules.useMarks;
+    $('rulesAiAnswers').textContent = `${rules.aiAnswers.answered} answered or skipped; ${rules.aiAnswers.notSame} pairs you said are different songs (never suggested again). "Same song" answers are listed under Your corrections.`;
     renderCorrections();
 }
 
@@ -997,6 +1025,11 @@ $('cancelScan').addEventListener('click', () => api.cancelScan());
 $('seeCatalog').addEventListener('click', () => navigate('catalog'));
 $('rescan').addEventListener('click', newScan);
 $('checkStart').addEventListener('click', chooseCheck);
+$('rulesAskAiAgain').addEventListener('click', async () => {
+    await api.forgetAiQuestions();
+    renderRules();
+    window.showToast?.('The AI may ask its questions again on the next scan.', 'success');
+});
 $('rulesCorrections').addEventListener('click', async (event) => {
     const button = event.target.closest('[data-undo-correction]');
     if (!button) return;

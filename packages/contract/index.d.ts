@@ -2,7 +2,7 @@
 // 1.0.0 was copied verbatim from docs/INTEGRATION_BRIEF.md §3.5 (the rewritten contract v1).
 // 1.1.0 adds optional fields only (marked "1.1.0"): every 1.0.0 consumer keeps working.
 // Runtime constants live in index.js. Check with: npm run typecheck
-// contract v1.4.0 — semver; any breaking change bumps the major version
+// contract v1.5.0 — semver; any breaking change bumps the major version
 
 // CHANGED from spec: plural, matching tracks.file_type convention, plus 'videos' (IMP-FN-033)
 export type FileType = "bounces" | "stems" | "projects" | "videos" | "unknown";
@@ -34,6 +34,8 @@ export interface UserRules {
   apart?: string[][];
   remove?: { file: string; from: string[] }[];
   names?: { files: string[]; name: string }[];
+  notSame?: { a: string[]; b: string[] }[]; // 1.5.0 — "different songs", the producer's answer to an AI question
+  skippedQuestions?: string[]; // 1.5.0 — ids of AI questions answered or skipped; not asked again
 }
 
 // CONFIRMED against public/components/header.js:4194 and the track_groups DDL
@@ -50,7 +52,7 @@ export interface ExistingSong {
 }
 
 export interface ProposedCatalog {
-  contractVersion: "1.0.0" | "1.1.0" | "1.2.0" | "1.3.0" | "1.4.0";
+  contractVersion: "1.0.0" | "1.1.0" | "1.2.0" | "1.3.0" | "1.4.0" | "1.5.0";
   engineVersion: string;
   policyVersion: string;
   songs: ProposedSong[];
@@ -181,7 +183,7 @@ export interface ScanStats {
   placeholdersSkipped: number; // ADDED
 }
 
-export declare const CONTRACT_VERSION: "1.4.0";
+export declare const CONTRACT_VERSION: "1.5.0";
 export declare const SONG_KINDS: readonly SongKind[];
 export declare const FILE_TYPES: readonly FileType[];
 export declare const BANDS: readonly ProposedSong["band"][];

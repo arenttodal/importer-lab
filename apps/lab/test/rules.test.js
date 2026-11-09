@@ -41,5 +41,22 @@ test('rules from marks can be switched off; prefix answers stay', (t) => {
     rules.answerPrefixes(data, { quill: 'band' });
     rules.setUseMarks(data, false);
     const built = rules.buildUserRules(data, [{ kind: 'right', target: 'song', songName: 'A', fileNames: ['a.wav', 'b.wav'] }]);
-    assert.deepEqual(built, { prefixes: { quill: 'band' }, together: [], apart: [], remove: [], names: [] });
+    assert.deepEqual(built, { prefixes: { quill: 'band' }, notSame: [], skippedQuestions: [], together: [], apart: [], remove: [], names: [] });
+});
+
+test('answers to the AI\'s questions: "different songs" and "what is" become rules; every answered or skipped id is kept', (t) => {
+    const data = setup(t);
+    const same = { id: 'q111111111111', kind: 'same-song', songFiles: ['Harbour Lights Bass.wav'], otherFiles: ['Harbour Lights.wav'] };
+    const what = { id: 'q222222222222', kind: 'what-is', word: 'ev' };
+    rules.answerAiQuestion(data, same, 'different');
+    rules.answerAiQuestion(data, what, 'band');
+    rules.answerAiQuestion(data, { id: 'q333333333333', kind: 'what-is', word: 'zz' }, 'skip');
+    const built = rules.buildUserRules(data, []);
+    assert.deepEqual(built.notSame, [{ a: ['Harbour Lights Bass.wav'], b: ['Harbour Lights.wav'] }]);
+    assert.equal(built.prefixes.ev, 'band');
+    assert.equal(built.prefixes.zz, undefined, 'skipping saves no answer');
+    assert.deepEqual(built.skippedQuestions, ['q111111111111', 'q222222222222', 'q333333333333']);
+    rules.forgetAiQuestions(data);
+    assert.deepEqual(rules.buildUserRules(data, []).skippedQuestions, []);
+    assert.equal(rules.buildUserRules(data, []).notSame.length, 1, 'answers stay');
 });

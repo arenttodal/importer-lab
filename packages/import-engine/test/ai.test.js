@@ -187,3 +187,48 @@ test('a failed call is logged and changes nothing; the scan goes on', async () =
     assert.deepEqual(stats.errors, ['offline']);
     assert.equal(songs.filter((entry) => entry.band === 'unclear').length, 2);
 });
+
+// Questions for the producer: the model may ask, but only the producer answers.
+const ask = (kind, text, extra = {}) => (item) => ({ item: item.id, decision: 'not-sure', candidate: '', sure: false, reason: 'Only the producer knows.', questionKind: 'none', question: '', word: '', ...(item.shownAs === 'Harbour Lights Bass' ? { questionKind: kind, question: text, ...extra(item) } : {}) });
+
+test('questions: when only the producer can tell, the model asks "same song?" or "what is …?"', async () => {
+    const songs = catalog();
+    const sameSong = ask('same-song', 'Is the bass file part of Harbour Lights?', () => ({}));
+    const client = fakeClient((item) => {
+        const answer = sameSong(item);
+        if (answer.questionKind === 'same-song') answer.candidate = item.candidates[0].id;
+        if (item.shownAs.startsWith('Morning 5')) Object.assign(answer, { questionKind: 'what-is', question: 'What is "Morning 5"?', word: 'Morning 5' });
+        return answer;
+    });
+    const stats = await runAiPass(songs, { client, model: 'claude-haiku-5-5', maxCostUsd: 1 });
+    assert.equal(stats.questions.length, 2);
+    const same = stats.questions.find((question) => question.kind === 'same-song');
+    assert.deepEqual([same.songName, same.otherName, same.text], ['Harbour Lights Bass', 'Harbour Lights', 'Is the bass file part of Harbour Lights?']);
+    assert.match(same.id, /^q[0-9a-f]{12}$/);
+    assert.deepEqual(same.songFiles, ['Harbour Lights Bass.wav']);
+    const what = stats.questions.find((question) => question.kind === 'what-is');
+    assert.deepEqual([what.word, what.text], ['morning 5', 'What is "Morning 5"?']);
+    assert.equal(songs.length, 5, 'a question changes nothing until it is answered');
+});
+
+test('questions: one already answered or skipped is not asked again; "different songs" is never suggested again', async () => {
+    const make = () => fakeClient((item) => ({ item: item.id, decision: 'same-song', candidate: item.candidates[0] ? item.candidates[0].id : '', sure: false, reason: 'Maybe.', questionKind: 'same-song', question: 'Same song?', word: '' }));
+    const first = await runAiPass(catalog(), { client: make(), model: 'claude-haiku-5-5', maxCostUsd: 1 });
+    const bassQuestion = first.questions.find((question) => question.songName === 'Harbour Lights Bass');
+    const skipped = await runAiPass(catalog(), { client: make(), model: 'claude-haiku-5-5', maxCostUsd: 1, userRules: { skippedQuestions: [bassQuestion.id] } });
+    assert.ok(!skipped.questions.some((question) => question.id === bassQuestion.id));
+    const songs = catalog();
+    const client = make();
+    await runAiPass(songs, { client, model: 'claude-haiku-5-5', maxCostUsd: 1, userRules: { notSame: [{ a: ['Harbour Lights Bass.wav'], b: ['Harbour Lights.wav', 'Harbour Lights.als'] }] } });
+    const sent = JSON.parse(client.requests[0].user.slice(client.requests[0].user.indexOf('{'))).items.find((item) => item.shownAs === 'Harbour Lights Bass');
+    assert.ok(!sent.candidates.some((candidate) => candidate.name === 'Harbour Lights'), 'not offered again');
+    assert.ok(!songs.find((song) => song.songName === 'Harbour Lights Bass').possibleMatches.some((match) => match.songName === 'Harbour Lights'));
+});
+
+test('questions: at most six per scan', async () => {
+    const songs = [];
+    for (let index = 0; index < 20; index += 1) songs.push(song(`Sketch ${index} Ember${index}`, 'unclear', [file(`Sketch ${index} Ember${index}.wav`)]));
+    const client = fakeClient((item) => ({ item: item.id, decision: 'not-sure', candidate: '', sure: false, reason: 'r', questionKind: 'what-is', question: `What is ${item.shownAs}?`, word: item.shownAs }));
+    const stats = await runAiPass(songs, { client, model: 'claude-haiku-5-5', maxCostUsd: 1 });
+    assert.equal(stats.questions.length, 6);
+});

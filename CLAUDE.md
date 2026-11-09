@@ -26,7 +26,7 @@ If an adapter cannot reach what it needs (for example an unexported function), w
 | Folder | Rule |
 | --- | --- |
 | `packages/import-engine/` | The engine. No UI, no database, no Electron imports, no network (until M4's AI pass). Main-app modules are loaded only through `src/adapters/`. |
-| `packages/contract/` | Contract types, semver. Currently 1.4.0. Any breaking change bumps the major version and needs Ross's sign-off. |
+| `packages/contract/` | Contract types, semver. Currently 1.5.0. Any breaking change bumps the major version and needs Ross's sign-off. |
 | `apps/lab/` | The Electron shell: screens, file-system guard, local SQLite store, worker thread. Absolute paths never leave the main process or the worker; the renderer gets `sourceRelativePath` only. |
 | `vendor/the-library/` | Git submodule, pinned. **Never edit files inside it.** Moving the pin is a deliberate commit that records the reason in `docs/DECISIONS.md`. |
 | `fixtures/synthetic/` | The generator only. Generated catalogs are written to temp folders or `fixtures/synthetic/out/` (git-ignored). |

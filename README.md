@@ -68,7 +68,9 @@ song as …" becomes the first suggestion on that song (it merges only when the 
 identity, the merge rule), and a sure "a song of its own" moves it from unclear to "check". A cost cap
 per scan (default $0.50) stops before any call that could pass it, the scan screen shows the cost so
 far, and Metrics and Logs show every call (model, tokens, dollars). Answers are kept in the data folder,
-so scanning again costs nothing. Models: Claude Haiku 5.5 first, Claude Sonnet 5.5 for a batch where
+so scanning again costs nothing. When only you can settle something, the AI asks you ("Is X the same song as
+Y?", "What is Ev?") in the **Teach the importer** window, up to six per scan; your answers become rules.
+Models: Claude Haiku 5.5 first, Claude Sonnet 5.5 for a batch where
 Haiku is unsure on more than a quarter (both changeable). The key: **Add key…** in the same section
 (kept encrypted by the macOS keychain in the lab's folder), or `ANTHROPIC_API_KEY` in an untracked
 `.env` file when running from source (see `.env.example`). The key never ships inside the app.

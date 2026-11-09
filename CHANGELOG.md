@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.0-dev.11 — 2026-11-09 (the AI asks you)
+
+- **The AI asks the producer** when only they can settle something: "Is X the same song as Y?" (Same
+  song / Different songs / Not sure) or "What is <word>?" (band, series, course, sample pack,
+  collaborator, just a word). Up to six per scan, in the same **Teach the importer** window as the
+  engine's own questions. A question changes nothing until it is answered.
+- Answers become rules on the next scan: "Same song" is a merge mark (listed under Your corrections, with
+  Undo); "Different songs" means the pair is never suggested or offered to the AI again; "What is" is a
+  prefix answer. Answered and skipped questions are not asked again; Lab → Rules can ask them again.
+- The results file now says which songs the AI touched and why (`decidedBy`, `ai`).
+- First real AI run (producer's 2025 catalog, 9 Nov, 0.4.0-dev.10): 18 unclear songs, 4 suggestions,
+  14 "a song of its own", $0.054 (Haiku $0.003, then Sonnet $0.051 because Haiku was unsure on more than
+  a quarter). The new instruction (`lab-ai-2`) means the first scan after this build asks again once.
+
+Contract 1.5.0 (optional `userRules.notSame`, `userRules.skippedQuestions`), engine 0.4.2-m4.
+
 ## 0.4.0-dev.10 — 2026-11-08 (two fixes from the 22:44 check)
 
 Replay of the producer's results files, 0.4.0-m4 → 0.4.1-m4 (names policy `lab-names-5`). The list of

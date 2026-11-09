@@ -337,7 +337,31 @@ function registerIpc() {
     ipcMain.handle('lab:get-rules', () => {
         const saved = rulesStore.loadRules(DATA_DIR);
         const fromMarks = userRulesForScan();
-        return { prefixes: saved.prefixes, useMarks: saved.useMarks, fromMarks: { together: fromMarks.together.length, apart: fromMarks.apart.length, remove: fromMarks.remove.length, names: fromMarks.names.length } };
+        return {
+            prefixes: saved.prefixes,
+            useMarks: saved.useMarks,
+            fromMarks: { together: fromMarks.together.length, apart: fromMarks.apart.length, remove: fromMarks.remove.length, names: fromMarks.names.length },
+            aiAnswers: { notSame: saved.notSame.length, answered: saved.skippedQuestions.length }
+        };
+    });
+    // Answers to the AI's questions: { questionId: 'same' | 'different' | 'skip' | role }.
+    ipcMain.handle('lab:answer-ai-questions', (_event, answers) => {
+        if (!last) throw new Error('Scan first');
+        const questions = (last.view.notes.ai && last.view.notes.ai.questions) || [];
+        for (const [id, answer] of Object.entries(answers || {})) {
+            const question = questions.find((candidate) => candidate.id === id);
+            if (!question) continue;
+            if (answer === 'same' && question.kind === 'same-song') {
+                const mark = labels.addMark(DATA_DIR, last.catalogId, { kind: 'merge', target: 'song', songName: question.songName, fileNames: question.songFiles }, markContext());
+                labels.updateMark(DATA_DIR, last.catalogId, mark.id, { mergeWithSongName: question.otherName, mergeWithFileNames: question.otherFiles });
+            }
+            rulesStore.answerAiQuestion(DATA_DIR, question, String(answer));
+        }
+        return labels.loadLabels(DATA_DIR, last.catalogId).marks;
+    });
+    ipcMain.handle('lab:forget-ai-questions', () => {
+        rulesStore.forgetAiQuestions(DATA_DIR);
+        return true;
     });
     ipcMain.handle('lab:answer-prefixes', (_event, answers) => rulesStore.answerPrefixes(DATA_DIR, answers).prefixes);
     ipcMain.handle('lab:set-use-marks', (_event, useMarks) => rulesStore.setUseMarks(DATA_DIR, useMarks).useMarks);

@@ -73,6 +73,8 @@ function buildResults({ view, labels, app }) {
             counts: song.counts,
             versions: song.versions.map((version) => version.label),
             possibleMatches: song.possibleMatches.map((match) => match.songName),
+            decidedBy: song.decidedBy || 'rules',
+            ai: (song.reasons || []).filter((text) => text.startsWith('AI (')),
             files: song.fileIds.map(fileEntry)
         })),
         otherFiles: view.files.filter((file) => file.type === 'unknown').map((file) => fileEntry(file.fileId)),

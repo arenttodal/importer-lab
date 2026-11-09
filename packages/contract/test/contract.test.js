@@ -14,15 +14,15 @@ function unionMembers(source, pattern) {
     return [...match[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
 }
 
-test('contract version is 1.4.0 in code, types and package.json; older catalogs stay valid', () => {
-    assert.equal(CONTRACT_VERSION, '1.4.0');
-    assert.match(types, /contractVersion: "1\.0\.0" \| "1\.1\.0" \| "1\.2\.0" \| "1\.3\.0" \| "1\.4\.0"/);
-    assert.match(types, /CONTRACT_VERSION: "1\.4\.0"/);
-    assert.equal(require('../package.json').version, '1.4.0');
+test('contract version is 1.5.0 in code, types and package.json; older catalogs stay valid', () => {
+    assert.equal(CONTRACT_VERSION, '1.5.0');
+    assert.match(types, /contractVersion: "1\.0\.0" \| "1\.1\.0" \| "1\.2\.0" \| "1\.3\.0" \| "1\.4\.0" \| "1\.5\.0"/);
+    assert.match(types, /CONTRACT_VERSION: "1\.5\.0"/);
+    assert.equal(require('../package.json').version, '1.5.0');
 });
 
-test('1.1.0 to 1.4.0 only add optional fields', () => {
-    const added = types.split('\n').filter((line) => /\/\/ 1\.[1234]\.0/.test(line) && /^\s+\w+\??:/.test(line));
+test('1.1.0 to 1.5.0 only add optional fields', () => {
+    const added = types.split('\n').filter((line) => /\/\/ 1\.[12345]\.0/.test(line) && /^\s+\w+\??:/.test(line));
     assert.ok(added.length >= 10);
     for (const line of added) assert.match(line, /^\s+\w+\?:/, `not optional: ${line.trim()}`);
 });

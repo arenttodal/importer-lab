@@ -6,7 +6,7 @@
 
 const { policy } = require('../names');
 
-const PROMPT_VERSION = 'lab-ai-1';
+const PROMPT_VERSION = 'lab-ai-2';
 
 const titleCase = (text) => text.replace(/\b\w/g, (letter) => letter.toUpperCase());
 
@@ -22,7 +22,13 @@ Rules:
 - Version words (final, master, mix, edit, bounce, stems, instrumental, a version number) do not make a different song.
 - A collaborator, client or series prefix is not the song's title.
 - Set "sure" to true only when the names leave little doubt.
-- Answer every item exactly once. Give the reason in one short sentence.`;
+- Answer every item exactly once. Give the reason in one short sentence.
+
+Asking the producer:
+- When only the producer can settle an item, ask them one short, plain question; otherwise set "questionKind" to "none" and leave "question" and "word" empty.
+- "same-song": you cannot tell whether the item and one candidate are the same piece; give that candidate's id in "candidate" and ask, for example: Is "X" the same song as "Y"?
+- "what-is": a word, abbreviation or prefix decides the answer and you do not know what it means; put it in "word" and ask, for example: What is "Ev"? A band, a series, a course, a sample pack, a collaborator, or just a word?
+- Ask only when the answer would change how files are grouped. Never ask about something the names already make clear.`;
 
 const SCHEMA = {
     type: 'object',
@@ -34,13 +40,16 @@ const SCHEMA = {
             items: {
                 type: 'object',
                 additionalProperties: false,
-                required: ['item', 'decision', 'candidate', 'sure', 'reason'],
+                required: ['item', 'decision', 'candidate', 'sure', 'reason', 'questionKind', 'question', 'word'],
                 properties: {
                     item: { type: 'string' },
                     decision: { type: 'string', enum: ['same-song', 'own-song', 'not-sure'] },
                     candidate: { type: 'string', description: 'The candidate id for same-song, otherwise an empty string' },
                     sure: { type: 'boolean' },
-                    reason: { type: 'string' }
+                    reason: { type: 'string' },
+                    questionKind: { type: 'string', enum: ['none', 'same-song', 'what-is'] },
+                    question: { type: 'string', description: 'A short question for the producer, or an empty string' },
+                    word: { type: 'string', description: 'For what-is: the word or prefix asked about, otherwise an empty string' }
                 }
             }
         }
